@@ -24,3 +24,4 @@ public/uploads/*
 *.sln
 *.sw?
 .DS_Store
+/*.pdf
