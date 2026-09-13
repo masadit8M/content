@@ -62,4 +62,11 @@ export class LocalStorageService implements StorageService {
   }
 }
 
-export const storageService = new LocalStorageService();
+import { SupabaseStorageService } from "./supabase";
+
+export const storageService: StorageService =
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  (process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    ? new SupabaseStorageService()
+    : new LocalStorageService();
