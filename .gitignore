@@ -1,0 +1,26 @@
+node_modules
+.next
+out
+build
+dist
+.env*.local
+.env
+!.env.example
+
+# SQLite
+prisma/*.db
+prisma/*.db-journal
+
+# Uploads
+public/uploads/*
+!public/uploads/.gitkeep
+
+# IDE
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
