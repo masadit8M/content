@@ -1,24 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    let user = await getCurrentUser();
-
-    // If no session exists yet, default auto-login to Mas Adit (Arjuna Lead Consultant) for seamless demo
-    if (!user) {
-      const defaultUser = await prisma.user.findFirst({
-        where: { email: "masadit@arjuna.id" },
-        include: {
-          organizationMemberships: { include: { organization: true } },
-          projectMemberships: { include: { project: true } },
-        },
-      });
-      if (defaultUser) {
-        user = defaultUser;
-      }
-    }
+    const user = await getCurrentUser();
 
     if (!user) {
       return NextResponse.json({ user: null });
