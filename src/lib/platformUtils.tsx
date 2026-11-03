@@ -49,26 +49,29 @@ export function getPlatformBadge(platform: string) {
 }
 
 export function getStatusBadge(status: string) {
-  switch (status.toUpperCase()) {
+  switch (status?.toUpperCase()) {
+    case "RAW_MATERIAL":
     case "IDEA":
       return {
-        label: "💡 Ide / Konsep",
-        className: "bg-slate-100 text-[#1A3460] border-slate-300 font-bold",
+        label: "📁 Bahan Mentah",
+        className: "bg-indigo-50 text-indigo-800 border-indigo-300 font-black",
       };
+    case "IN_EDITING":
     case "IN_PREPARATION":
       return {
-        label: "🛠️ Persiapan Admin",
-        className: "bg-amber-50 text-amber-800 border-amber-300 font-bold",
+        label: "🎨 Sedang Diedit",
+        className: "bg-amber-50 text-amber-800 border-amber-300 font-black",
       };
+    case "NEED_REVISION":
     case "IN_REVIEW":
       return {
-        label: "🔍 Review & Revisi",
-        className: "bg-purple-50 text-purple-800 border-purple-300 font-bold",
+        label: "🔁 Perlu Revisi",
+        className: "bg-rose-50 text-rose-800 border-rose-300 font-black",
       };
     case "READY_TO_PUBLISH":
       return {
-        label: "🚀 Siap Tayang",
-        className: "bg-blue-50 text-blue-800 border-blue-300 font-bold",
+        label: "🚀 Siap Upload",
+        className: "bg-blue-50 text-blue-800 border-blue-300 font-black",
       };
     case "PUBLISHED":
       return {
@@ -77,8 +80,8 @@ export function getStatusBadge(status: string) {
       };
     default:
       return {
-        label: status,
-        className: "bg-slate-100 text-slate-700 border-slate-300",
+        label: status || "Draft",
+        className: "bg-slate-100 text-slate-700 border-slate-300 font-bold",
       };
   }
 }

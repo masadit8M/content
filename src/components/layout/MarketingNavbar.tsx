@@ -14,9 +14,11 @@ import {
   Wand2,
 } from "lucide-react";
 
+export type ViewType = "raw" | "editing" | "ready" | "showcase" | "board" | "list" | "studio";
+
 interface NavbarProps {
-  currentView: "board" | "showcase" | "list" | "studio";
-  onViewChange: (view: "board" | "showcase" | "list" | "studio") => void;
+  currentView: ViewType;
+  onViewChange: (view: ViewType) => void;
   selectedPlatform: string;
   onPlatformChange: (platform: string) => void;
   searchQuery: string;
@@ -197,58 +199,84 @@ export function MarketingNavbar({
       <div className="bg-[#122544] border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between py-2 gap-3">
-            {/* View Modes (ClickUp style + Canvas Studio) */}
-            <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/10">
+            {/* Alur Pipeline Tabs & View Modes */}
+            <div className="flex items-center gap-1 bg-white/10 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-full">
+              {/* TAB 1: BAHAN MENTAH */}
               <button
-                onClick={() => onViewChange("board")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                  currentView === "board"
-                    ? "bg-[#F35E50] text-white shadow-sm"
+                onClick={() => onViewChange("raw")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                  currentView === "raw"
+                    ? "bg-[#F35E50] text-white shadow-md"
                     : "text-white/80 hover:text-white hover:bg-white/10"
                 }`}
               >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Kanban Board</span>
+                <span>📁 1. Bahan Mentah</span>
               </button>
 
+              {/* TAB 2: PROSES EDITING & REVISI */}
+              <button
+                onClick={() => onViewChange("editing")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                  currentView === "editing"
+                    ? "bg-amber-500 text-white shadow-md"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span>🎨 2. Proses Editing</span>
+              </button>
+
+              {/* TAB 3: SIAP UPLOAD */}
+              <button
+                onClick={() => onViewChange("ready")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                  currentView === "ready"
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span>🚀 3. Siap Upload</span>
+              </button>
+
+              {/* TAB 4: SUDAH LIVE (SHOWCASE) */}
               <button
                 onClick={() => onViewChange("showcase")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
                   currentView === "showcase"
-                    ? "bg-emerald-600 text-white shadow-sm"
+                    ? "bg-emerald-600 text-white shadow-md"
                     : "text-white/80 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <Flame className="w-3.5 h-3.5 text-[#F3BC6F]" />
-                <span>Showcase Live</span>
+                <span>4. Sudah Live</span>
                 <span className="w-2 h-2 rounded-full bg-[#F3BC6F] animate-ping ml-0.5" />
               </button>
 
+              {/* KANBAN BOARD VIEW */}
               <button
-                onClick={() => onViewChange("list")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                  currentView === "list"
-                    ? "bg-[#F35E50] text-white shadow-sm"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
+                onClick={() => onViewChange("board")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                  currentView === "board"
+                    ? "bg-indigo-600 text-white shadow-md"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
                 }`}
               >
-                <ListFilter className="w-3.5 h-3.5" />
-                <span>List View</span>
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Kanban</span>
               </button>
 
               {/* STUDIO IDE CANVAS ARJUNA TAB */}
               <button
                 onClick={() => onViewChange("studio")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
                   currentView === "studio"
                     ? "bg-[#F3BC6F] text-[#1A3460] shadow-md"
                     : "text-[#F3BC6F] hover:text-white hover:bg-white/10"
                 }`}
               >
                 <Wand2 className="w-3.5 h-3.5" />
-                <span>🎨 Studio Ide Arjuna</span>
+                <span>Studio Ide</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-[#F35E50] text-white text-[9px] font-black uppercase">
-                  Brainstorm
+                  AI
                 </span>
               </button>
             </div>

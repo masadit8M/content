@@ -30,7 +30,8 @@ export async function GET(
         },
         comments: {
           include: {
-            user: { select: { id: true, name: true, avatar: true, title: true } },
+            user: { select: { id: true, name: true, avatar: true, title: true, role: true } },
+            taggedUser: { select: { id: true, name: true, avatar: true, title: true, role: true } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -75,6 +76,14 @@ export async function PATCH(
     if (body.prepNotes !== undefined) updateData.prepNotes = body.prepNotes;
     if (body.assetUrl !== undefined) updateData.assetUrl = body.assetUrl;
     if (body.assetName !== undefined) updateData.assetName = body.assetName;
+    if (body.rawAssetUrl !== undefined) updateData.rawAssetUrl = body.rawAssetUrl;
+    if (body.rawAssetName !== undefined) updateData.rawAssetName = body.rawAssetName;
+    if (body.rawAssetType !== undefined) updateData.rawAssetType = body.rawAssetType;
+    if (body.editedAssetUrl !== undefined) updateData.editedAssetUrl = body.editedAssetUrl;
+    if (body.editedAssetName !== undefined) updateData.editedAssetName = body.editedAssetName;
+    if (body.editedAssetType !== undefined) updateData.editedAssetType = body.editedAssetType;
+    if (body.revisionNote !== undefined) updateData.revisionNote = body.revisionNote;
+    if (body.version !== undefined) updateData.version = body.version;
     if (body.assignedToId !== undefined) updateData.assignedToId = body.assignedToId;
     if (body.targetDate !== undefined) {
       updateData.targetDate = body.targetDate ? new Date(body.targetDate) : null;
@@ -111,7 +120,8 @@ export async function PATCH(
         },
         comments: {
           include: {
-            user: { select: { id: true, name: true, avatar: true, title: true } },
+            user: { select: { id: true, name: true, avatar: true, title: true, role: true } },
+            taggedUser: { select: { id: true, name: true, avatar: true, title: true, role: true } },
           },
           orderBy: { createdAt: "asc" },
         },

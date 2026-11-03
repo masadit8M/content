@@ -27,43 +27,43 @@ interface KanbanProps {
 
 const COLUMNS = [
   {
-    id: "IDEA",
-    title: "Ide & Konsep",
-    icon: "💡",
-    borderClass: "border-2 border-[#1A3460]/20",
-    headerColor: "text-[#1A3460]",
-    badgeBg: "bg-[#1A3460] text-white",
+    id: "RAW_MATERIAL",
+    title: "1. Bahan Mentah",
+    icon: "📁",
+    borderClass: "border-2 border-indigo-200 bg-indigo-50/15",
+    headerColor: "text-indigo-900",
+    badgeBg: "bg-indigo-600 text-white",
   },
   {
-    id: "IN_PREPARATION",
-    title: "Persiapan Admin",
-    icon: "🛠️",
-    borderClass: "border-2 border-[#F3BC6F]",
-    headerColor: "text-[#F35E50]",
-    badgeBg: "bg-[#F35E50] text-white",
+    id: "IN_EDITING",
+    title: "2. Sedang Diedit",
+    icon: "🎨",
+    borderClass: "border-2 border-amber-300 bg-amber-50/15",
+    headerColor: "text-amber-900",
+    badgeBg: "bg-amber-500 text-white",
   },
   {
-    id: "IN_REVIEW",
-    title: "Review & Tambah Task",
-    icon: "🔍",
-    borderClass: "border-2 border-[#F9C5CB]",
-    headerColor: "text-[#1A3460]",
-    badgeBg: "bg-[#1A3460] text-white",
+    id: "NEED_REVISION",
+    title: "3. Perlu Revisi",
+    icon: "🔁",
+    borderClass: "border-2 border-rose-300 bg-rose-50/15",
+    headerColor: "text-rose-900",
+    badgeBg: "bg-rose-500 text-white",
   },
   {
     id: "READY_TO_PUBLISH",
-    title: "Siap Tayang",
+    title: "4. Siap Upload",
     icon: "🚀",
-    borderClass: "border-2 border-[#F3BC6F]",
-    headerColor: "text-[#1A3460]",
-    badgeBg: "bg-[#F3BC6F] text-[#1A3460]",
+    borderClass: "border-2 border-blue-300 bg-blue-50/15",
+    headerColor: "text-blue-900",
+    badgeBg: "bg-blue-600 text-white",
   },
   {
     id: "PUBLISHED",
-    title: "Sudah Live!",
+    title: "5. Sudah Live!",
     icon: "🎉",
-    borderClass: "border-2 border-emerald-500 bg-emerald-50/30",
-    headerColor: "text-emerald-700",
+    borderClass: "border-2 border-emerald-400 bg-emerald-50/30",
+    headerColor: "text-emerald-800",
     badgeBg: "bg-emerald-600 text-white",
   },
 ];
@@ -77,10 +77,13 @@ export function KanbanBoard({
 }: KanbanProps) {
   const getNextStatus = (current: string) => {
     switch (current) {
+      case "RAW_MATERIAL":
       case "IDEA":
-        return "IN_PREPARATION";
+        return "IN_EDITING";
+      case "IN_EDITING":
       case "IN_PREPARATION":
-        return "IN_REVIEW";
+        return "NEED_REVISION";
+      case "NEED_REVISION":
       case "IN_REVIEW":
         return "READY_TO_PUBLISH";
       case "READY_TO_PUBLISH":
@@ -95,11 +98,13 @@ export function KanbanBoard({
       case "PUBLISHED":
         return "READY_TO_PUBLISH";
       case "READY_TO_PUBLISH":
-        return "IN_REVIEW";
+        return "NEED_REVISION";
+      case "NEED_REVISION":
       case "IN_REVIEW":
-        return "IN_PREPARATION";
+        return "IN_EDITING";
+      case "IN_EDITING":
       case "IN_PREPARATION":
-        return "IDEA";
+        return "RAW_MATERIAL";
       default:
         return null;
     }
@@ -109,10 +114,22 @@ export function KanbanBoard({
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-start">
       {COLUMNS.map((col) => {
         const columnContents = contents.filter((c) => {
+          if (col.id === "RAW_MATERIAL") {
+            return (c.status === "RAW_MATERIAL" || c.status === "IDEA") && !c.liveUrl;
+          }
+          if (col.id === "IN_EDITING") {
+            return (c.status === "IN_EDITING" || c.status === "IN_PREPARATION") && !c.liveUrl;
+          }
+          if (col.id === "NEED_REVISION") {
+            return (c.status === "NEED_REVISION" || c.status === "IN_REVIEW") && !c.liveUrl;
+          }
+          if (col.id === "READY_TO_PUBLISH") {
+            return c.status === "READY_TO_PUBLISH" && !c.liveUrl;
+          }
           if (col.id === "PUBLISHED") {
             return c.status === "PUBLISHED" || Boolean(c.liveUrl);
           }
-          return c.status === col.id && !c.liveUrl;
+          return false;
         });
 
         return (

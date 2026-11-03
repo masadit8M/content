@@ -23,6 +23,7 @@ model User {
   createdTasks      ContentTask[]      @relation("CreatedTasks")
   assignedTasks     ContentTask[]      @relation("AssignedTasks")
   comments          ContentComment[]
+  taggedComments    ContentComment[]   @relation("TaggedComments")
 }
 
 model MarketingContent {
@@ -31,11 +32,23 @@ model MarketingContent {
   description  String?   // Brief / Konsep utama
   platform     String    @default("INSTAGRAM") // "INSTAGRAM", "TIKTOK", "YOUTUBE", "LINKEDIN", "WEBSITE", "FACEBOOK"
   contentType  String    @default("FEED_CAROUSEL") // "REELS", "FEED_CAROUSEL", "STORY", "TIKTOK_VIDEO", "YOUTUBE_VIDEO", "BANNER", "ARTICLE"
-  status       String    @default("IN_PREPARATION") // "IDEA", "IN_PREPARATION", "IN_REVIEW", "READY_TO_PUBLISH", "PUBLISHED"
+  status       String    @default("RAW_MATERIAL") // "RAW_MATERIAL", "IN_EDITING", "NEED_REVISION", "READY_TO_PUBLISH", "PUBLISHED"
   
-  // Persiapan yang sudah dibuat oleh admin
+  // File Mentah (Raw Footage / Image / Video)
+  rawAssetUrl   String?
+  rawAssetName  String?
+  rawAssetType  String?   // "IMAGE", "VIDEO", "LINK", "DOCUMENT"
+
+  // Hasil Editing & Versi Revisi
+  editedAssetUrl  String?
+  editedAssetName String?
+  editedAssetType String?
+  revisionNote    String?
+  version         Int       @default(1)
+
+  // Persiapan yang sudah dibuat oleh admin (draft caption, naskah, dll)
   prepNotes    String?   // Catatan persiapan: draft caption, naskah/script, angle visual, bahan riset
-  assetUrl     String?   // Link asset/preview (Figma, Canva, Google Drive, file upload)
+  assetUrl     String?   // Link asset/preview umum
   assetName    String?   // Nama file atau label asset
   
   // Hasil Live (Publish)
@@ -85,6 +98,9 @@ model ContentComment {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  message   String
+  message      String
+  taggedUserId String?
+  taggedUser   User?    @relation("TaggedComments", fields: [taggedUserId], references: [id], onDelete: SetNull)
+  
   createdAt DateTime @default(now())
 }

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { FileUploadInput, UploadedFile } from "@/components/common/FileUploadInput";
 import {
   X,
   Sparkles,
@@ -10,6 +11,9 @@ import {
   Flame,
   Calendar,
   Layers,
+  UploadCloud,
+  Video,
+  Image as ImageIcon,
 } from "lucide-react";
 
 interface CreateModalProps {
@@ -22,7 +26,7 @@ interface CreateModalProps {
 
 export function CreateContentModal({
   users,
-  defaultStatus = "IN_PREPARATION",
+  defaultStatus = "RAW_MATERIAL",
   onClose,
   onSuccess,
   onOpenStudio,
@@ -35,24 +39,36 @@ export function CreateContentModal({
   const [contentType, setContentType] = useState("FEED_CAROUSEL");
   const [status, setStatus] = useState(defaultStatus);
   const [prepNotes, setPrepNotes] = useState("");
+  const [rawFile, setRawFile] = useState<UploadedFile | null>(null);
   const [assetUrl, setAssetUrl] = useState("");
   const [liveUrl, setLiveUrl] = useState("");
   const [liveNote, setLiveNote] = useState("");
   const [targetDate, setTargetDate] = useState("");
-  const [assignedToId, setAssignedToId] = useState(currentUser?.id || "");
+  const [assignedToId, setAssignedToId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const isRawMode = status === "RAW_MATERIAL";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError("Judul konten wajib diisi");
+      setError("Judul konten / bahan mentah wajib diisi");
       return;
     }
 
     try {
       setLoading(true);
       setError("");
+
+      const finalRawUrl = rawFile?.url || assetUrl.trim() || null;
+      const finalRawName = rawFile?.fileName || null;
+      let rawType = "DOCUMENT";
+      if (rawFile?.fileType?.startsWith("video/") || contentType?.includes("VIDEO") || contentType === "REELS") {
+        rawType = "VIDEO";
+      } else if (rawFile?.fileType?.startsWith("image/") || contentType === "FEED_CAROUSEL") {
+        rawType = "IMAGE";
+      }
 
       const res = await fetch("/api/contents", {
         method: "POST",
@@ -63,8 +79,11 @@ export function CreateContentModal({
           platform,
           contentType,
           status,
+          rawAssetUrl: finalRawUrl,
+          rawAssetName: finalRawName,
+          rawAssetType: rawType,
+          assetUrl: finalRawUrl,
           prepNotes: prepNotes.trim() || null,
-          assetUrl: assetUrl.trim() || null,
           liveUrl: liveUrl.trim() || null,
           liveNote: liveNote.trim() || null,
           targetDate: targetDate || null,
@@ -93,14 +112,18 @@ export function CreateContentModal({
         <div className="p-5 sm:p-6 border-b-2 border-[#F3BC6F] flex items-center justify-between bg-[#1A3460] text-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#F35E50] border border-[#F3BC6F] flex items-center justify-center text-white shadow-md">
-              <Sparkles className="w-5 h-5" />
+              {isRawMode ? <UploadCloud className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black text-white">
-                Lapor Persiapan Konten Marketing
+                {isRawMode
+                  ? "Upload Bahan Mentah (Foto / Video)"
+                  : "Buat Rencana Konten Baru"}
               </h3>
               <p className="text-[11px] text-[#F9C5CB] font-semibold">
-                Laporkan ide, draf naskah, atau langsung submit link hasil live
+                {isRawMode
+                  ? "Bahan mentah dapat diambil oleh anggota tim lain untuk diedit"
+                  : "Tambahkan naskah persiapan atau langsung submit ke antrean tim"}
               </p>
             </div>
           </div>
@@ -121,43 +144,34 @@ export function CreateContentModal({
             </div>
           )}
 
-          {/* AI Brainstorm Recommendation Banner */}
-          {status === "IDEA" && onOpenStudio && (
-            <div className="p-3.5 rounded-2xl bg-[#1A3460] text-white flex items-center justify-between gap-3 border-2 border-[#F3BC6F] shadow-sm">
-              <div className="flex items-center gap-2.5">
-                <Sparkles className="w-5 h-5 text-[#F3BC6F] shrink-0" />
-                <div>
-                  <div className="text-xs font-black text-[#F3BC6F]">Ingin Brainstorming dengan AI?</div>
-                  <p className="text-[11px] text-white/80 font-medium">
-                    Gunakan Studio Ide Arjuna untuk riset hook, naskah, dan format otomatis.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenStudio(title);
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white text-xs font-black shrink-0 shadow-sm cursor-pointer whitespace-nowrap"
-              >
-                Buka Studio AI →
-              </button>
-            </div>
-          )}
-
-          {/* Title */}
+          {/* Judul */}
           <div>
             <label className="block text-xs font-black text-[#1A3460] mb-1">
-              Judul Konten <span className="text-[#F35E50]">*</span>
+              Judul Bahan / Konten <span className="text-[#F35E50]">*</span>
             </label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Contoh: Carousel Edukasi - 5 Alasan Sensorik Play Penting di PAUD"
+              placeholder="Contoh: Rekaman Video Anak Belajar Brain Gym & Sensory Play"
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] text-xs sm:text-sm font-bold"
+            />
+          </div>
+
+          {/* UPLOAD FILE MENTAH (Foto atau Video) */}
+          <div className="bg-[#FFF8F3] border-2 border-[#F3BC6F] rounded-2xl p-4 space-y-2">
+            <FileUploadInput
+              label="📸 Upload File Mentah (Video MP4/MOV atau Foto JPG/PNG)"
+              helperText="Upload langsung video footage rekaman HP / kamera, atau masukkan link Google Drive / Canva jika file sangat besar."
+              value={rawFile?.url}
+              fileName={rawFile?.fileName}
+              fileSize={rawFile?.fileSize}
+              fileType={rawFile?.fileType}
+              onChange={(file) => {
+                setRawFile(file);
+                if (file) setAssetUrl(file.url);
+              }}
             />
           </div>
 
@@ -165,7 +179,7 @@ export function CreateContentModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-black text-[#1A3460] mb-1">
-                Platform Media Sosial
+                Target Platform
               </label>
               <select
                 value={platform}
@@ -183,16 +197,16 @@ export function CreateContentModal({
 
             <div>
               <label className="block text-xs font-black text-[#1A3460] mb-1">
-                Format Konten
+                Format yang Ditargetkan
               </label>
               <select
                 value={contentType}
                 onChange={(e) => setContentType(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] text-xs font-bold focus:outline-none focus:border-[#F35E50]"
               >
-                <option value="FEED_CAROUSEL">Feed Carousel (Multi-Slide)</option>
-                <option value="REELS">Instagram Reels</option>
+                <option value="REELS">Instagram Reels (Video Pendek)</option>
                 <option value="TIKTOK_VIDEO">TikTok Video</option>
+                <option value="FEED_CAROUSEL">Feed Carousel (Multi-Slide)</option>
                 <option value="YOUTUBE_VIDEO">YouTube Video / Shorts</option>
                 <option value="STORY">Story Harian</option>
                 <option value="BANNER">Banner Flyer Promosi</option>
@@ -200,35 +214,34 @@ export function CreateContentModal({
             </div>
           </div>
 
-          {/* Status & PIC */}
+          {/* Status Alur & Penugasan */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-black text-[#1A3460] mb-1">
-                Status Awal
+                Tahap Tab Alur
               </label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] text-xs font-bold focus:outline-none focus:border-[#F35E50]"
               >
-                <option value="IDEA">💡 Ide & Konsep</option>
-                <option value="IN_PREPARATION">🛠️ Persiapan Admin</option>
-                <option value="IN_REVIEW">🔍 Review & Revisi Tim</option>
-                <option value="READY_TO_PUBLISH">🚀 Siap Tayang</option>
-                <option value="PUBLISHED">🎉 Sudah Live (Hasil Karya)</option>
+                <option value="RAW_MATERIAL">📁 Tab 1: Bahan Mentah (Siap Diambil Tim)</option>
+                <option value="IN_EDITING">🎨 Tab 2: Proses Editing</option>
+                <option value="READY_TO_PUBLISH">🚀 Tab 3: Siap Upload</option>
+                <option value="PUBLISHED">🎉 Tab 4: Sudah Live!</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-black text-[#1A3460] mb-1">
-                Tugaskan / PIC Konten
+                Tugaskan Editor Langsung (Opsional)
               </label>
               <select
                 value={assignedToId}
                 onChange={(e) => setAssignedToId(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] text-xs font-bold focus:outline-none focus:border-[#F35E50]"
               >
-                <option value="">-- Pilih PIC --</option>
+                <option value="">-- Biarkan Terbuka (Bisa Diambil Siapapun) --</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name} ({u.role})
@@ -238,68 +251,17 @@ export function CreateContentModal({
             </div>
           </div>
 
-          {/* Brief Concept */}
+          {/* Catatan Brief / Lapangan */}
           <div>
             <label className="block text-xs font-black text-[#1A3460] mb-1">
-              Konsep / Brief Singkat
+              Catatan Lapangan / Brief untuk Editor:
             </label>
-            <input
-              type="text"
+            <textarea
+              rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Jelaskan tujuan konten ini dan siapa audiens utamanya..."
-              className="w-full px-3.5 py-2 rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] text-xs font-medium"
-            />
-          </div>
-
-          {/* Laporan Persiapan Admin */}
-          <div className="bg-[#FFF8F3] border-2 border-[#F3BC6F] rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-[#F35E50] flex items-center gap-1.5 uppercase">
-                <FileText className="w-4 h-4" />
-                Laporan Persiapan yang Sudah Dibuat
-              </label>
-              <span className="text-[10px] text-[#1A3460]/60 font-bold">Draf Naskah & Visual</span>
-            </div>
-
-            <textarea
-              rows={4}
-              value={prepNotes}
-              onChange={(e) => setPrepNotes(e.target.value)}
-              placeholder="Tuliskan persiapan admin: draft naskah, angle hook, slide canva, atau catatan konsep..."
-              className="w-full p-3 rounded-xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] text-xs leading-relaxed font-medium"
-            />
-
-            <div>
-              <label className="block text-[11px] font-black text-[#1A3460] mb-1">
-                Link Asset Preview (Canva / Figma / Drive)
-              </label>
-              <input
-                type="url"
-                value={assetUrl}
-                onChange={(e) => setAssetUrl(e.target.value)}
-                placeholder="https://www.canva.com/design/... atau Google Drive"
-                className="w-full px-3 py-2 rounded-xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] text-xs placeholder-slate-400 focus:outline-none focus:border-[#F35E50]"
-              />
-            </div>
-          </div>
-
-          {/* Tautan Live Hasil Pekerjaan */}
-          <div className="bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-400 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-emerald-800 flex items-center gap-1.5 uppercase">
-                <Flame className="w-4 h-4 text-emerald-600" />
-                Link Hasil Live (Jika Desain Sudah Tayang)
-              </label>
-              <span className="text-[10px] text-emerald-700 font-bold">Otomatis Muncul di Showcase</span>
-            </div>
-
-            <input
-              type="url"
-              value={liveUrl}
-              onChange={(e) => setLiveUrl(e.target.value)}
-              placeholder="https://www.instagram.com/p/... atau TikTok link"
-              className="w-full px-3 py-2 rounded-xl bg-white border-2 border-emerald-400 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-emerald-600 text-xs font-bold"
+              placeholder="Contoh: Ini video anak waktu jam istirahat. Tolong diambil momen pas senyum dan kasih teks hook parenting..."
+              className="w-full p-3 rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] text-xs font-medium leading-relaxed"
             />
           </div>
 
@@ -317,7 +279,7 @@ export function CreateContentModal({
               disabled={loading}
               className="px-5 py-2 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white text-xs font-black shadow-md transition disabled:opacity-50 cursor-pointer"
             >
-              {loading ? "Menyimpan..." : "Simpan & Publikasikan ke Tim"}
+              {loading ? "Menyimpan..." : "Upload & Masukkan ke Antrean Tim"}
             </button>
           </div>
         </form>

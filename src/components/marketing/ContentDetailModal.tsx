@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { getPlatformBadge, getStatusBadge } from "@/lib/platformUtils";
+import { TeamMentionInput, renderMentionedText } from "@/components/common/TeamMentionInput";
+import { FileUploadInput, UploadedFile } from "@/components/common/FileUploadInput";
 import {
   X,
   ExternalLink,
@@ -20,6 +22,12 @@ import {
   CheckCircle2,
   ArrowRight,
   Clock,
+  Video,
+  Image as ImageIcon,
+  UploadCloud,
+  Wand2,
+  RefreshCw,
+  Download,
 } from "lucide-react";
 
 interface DetailModalProps {
@@ -43,6 +51,10 @@ export function ContentDetailModal({
   const [liveUrl, setLiveUrl] = useState(content.liveUrl || "");
   const [liveNote, setLiveNote] = useState(content.liveNote || "");
   const [assetUrl, setAssetUrl] = useState(content.assetUrl || "");
+  const [assignedToId, setAssignedToId] = useState(content.assignedToId || "");
+  const [revisionNote, setRevisionNote] = useState(content.revisionNote || "");
+  const [newEditedFile, setNewEditedFile] = useState<UploadedFile | null>(null);
+
   const [savingDetails, setSavingDetails] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -51,24 +63,30 @@ export function ContentDetailModal({
   const [newTaskAssignee, setNewTaskAssignee] = useState(currentUser?.id || "");
   const [addingTask, setAddingTask] = useState(false);
 
-  // State for comments
-  const [newComment, setNewComment] = useState("");
-  const [postingComment, setPostingComment] = useState(false);
-
-  // Save content details (Prep notes, Live URL, Status)
+  // Save content details
   const handleSaveDetails = async (forcedStatus?: string) => {
     try {
       setSavingDetails(true);
+      const updatePayload: any = {
+        status: forcedStatus || status,
+        prepNotes,
+        liveUrl,
+        liveNote,
+        assetUrl,
+        assignedToId: assignedToId || null,
+        revisionNote: revisionNote.trim() || null,
+      };
+
+      if (newEditedFile) {
+        updatePayload.editedAssetUrl = newEditedFile.url;
+        updatePayload.editedAssetName = newEditedFile.fileName;
+        updatePayload.version = (content.version || 1) + 1;
+      }
+
       const res = await fetch(`/api/contents/${content.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: forcedStatus || status,
-          prepNotes,
-          liveUrl,
-          liveNote,
-          assetUrl,
-        }),
+        body: JSON.stringify(updatePayload),
       });
 
       if (res.ok) {
@@ -84,7 +102,15 @@ export function ContentDetailModal({
     }
   };
 
-  // Add additional task from admin
+  // Quick Action: Ambil Bahan untuk Diedit
+  const handleClaim = async () => {
+    if (!currentUser) return;
+    setAssignedToId(currentUser.id);
+    await handleSaveDetails("IN_EDITING");
+    await handlePostComment(`🖐️ @${currentUser.name} mengambil alih editing konten ini.`);
+  };
+
+  // Add additional task
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
@@ -111,7 +137,7 @@ export function ContentDetailModal({
     }
   };
 
-  // Toggle task completion
+  // Toggle task
   const handleToggleTask = async (taskId: string, isCompleted: boolean) => {
     try {
       const res = await fetch(`/api/contents/${content.id}/tasks/${taskId}`, {
@@ -143,35 +169,32 @@ export function ContentDetailModal({
     }
   };
 
-  // Post comment
-  const handlePostComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
+  // Post comment with tagging
+  const handlePostComment = async (message: string, taggedUserId?: string) => {
+    if (!message.trim()) return;
 
     try {
-      setPostingComment(true);
       const res = await fetch(`/api/contents/${content.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: newComment.trim() }),
+        body: JSON.stringify({ message: message.trim(), taggedUserId }),
       });
 
       if (res.ok) {
-        setNewComment("");
         onRefresh();
       }
     } catch (err) {
       console.error(err);
-    } finally {
-      setPostingComment(false);
     }
   };
 
   const platformInfo = getPlatformBadge(content.platform);
+  const rawUrl = content.rawAssetUrl || content.assetUrl;
+  const editedUrl = content.editedAssetUrl;
 
   return (
     <div className="fixed inset-0 z-50 bg-[#1A3460]/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white border-2 border-[#1A3460] rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white border-2 border-[#1A3460] rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
         <div className="p-5 sm:p-6 border-b-2 border-[#F3BC6F] flex items-start justify-between gap-4 bg-[#1A3460] text-white">
           <div className="space-y-2 flex-1">
@@ -194,10 +217,10 @@ export function ContentDetailModal({
                   onChange={(e) => setStatus(e.target.value)}
                   className="bg-[#122544] border-2 border-[#F3BC6F] text-[#F3BC6F] text-xs font-black rounded-xl px-2.5 py-1 focus:outline-none focus:border-[#F35E50] cursor-pointer"
                 >
-                  <option value="IDEA">💡 Ide & Konsep</option>
-                  <option value="IN_PREPARATION">🛠️ Persiapan Admin</option>
-                  <option value="IN_REVIEW">🔍 Review & Revisi</option>
-                  <option value="READY_TO_PUBLISH">🚀 Siap Tayang</option>
+                  <option value="RAW_MATERIAL">📁 Bahan Mentah (Siap Diambil)</option>
+                  <option value="IN_EDITING">🎨 Sedang Diedit</option>
+                  <option value="NEED_REVISION">🔁 Perlu Revisi</option>
+                  <option value="READY_TO_PUBLISH">🚀 Siap Upload</option>
                   <option value="PUBLISHED">🎉 Sudah Live!</option>
                 </select>
               </div>
@@ -224,102 +247,193 @@ export function ContentDetailModal({
 
         {/* Modal Body - 2 Columns */}
         <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-h-[75vh] overflow-y-auto">
-          {/* Left Column: Prep Notes & Live Showcase Link */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* Section 1: Laporan Persiapan Admin */}
-            <div className="bg-[#FFF8F3] border-2 border-[#F3BC6F] rounded-2xl p-4 sm:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-[#F35E50] uppercase tracking-wider flex items-center gap-1.5">
-                  <FileText className="w-4 h-4" />
-                  Laporan Persiapan Admin
-                </label>
-                <span className="text-[10px] text-[#1A3460]/60 font-bold">
-                  (Naskah, angle visual, draft hook)
-                </span>
-              </div>
-
-              <textarea
-                rows={5}
-                value={prepNotes}
-                onChange={(e) => setPrepNotes(e.target.value)}
-                placeholder="Tuliskan persiapan yang sudah dibuat admin: draft naskah, angle hook, slide canva, atau catatan konsep..."
-                className="w-full p-3 text-xs sm:text-sm rounded-xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] focus:ring-1 focus:ring-[#F35E50] leading-relaxed font-sans font-medium"
-              />
-
-              <div>
-                <label className="block text-[11px] font-black text-[#1A3460] mb-1">
-                  Link Asset Desain / Preview (Figma, Canva, atau Google Drive)
-                </label>
-                <div className="relative">
-                  <LinkIcon className="w-4 h-4 text-[#1A3460]/50 absolute left-3 top-2.5" />
-                  <input
-                    type="url"
-                    value={assetUrl}
-                    onChange={(e) => setAssetUrl(e.target.value)}
-                    placeholder="https://www.canva.com/design/... atau Google Drive"
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] font-bold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Section 2: Publikasi & Tautan Live (Live Showcase) */}
-            <div className="bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-400 rounded-2xl p-4 sm:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-emerald-600" />
-                  Hasil Live (Tautan Postingan Publik)
-                </label>
-                <span className="text-[10px] text-emerald-700 font-bold">
-                  Dilihat semua user di Showcase
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                <input
-                  type="url"
-                  value={liveUrl}
-                  onChange={(e) => setLiveUrl(e.target.value)}
-                  placeholder="Paste URL hasil karya yang sudah live (Instagram/TikTok/YouTube)..."
-                  className="w-full p-2.5 text-xs sm:text-sm rounded-xl bg-white border-2 border-emerald-400 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-emerald-600 font-bold"
-                />
-
-                <input
-                  type="text"
-                  value={liveNote}
-                  onChange={(e) => setLiveNote(e.target.value)}
-                  placeholder="Catatan saat tayang (cth: 'Tayang jam 17:00 WIB, performa reach bagus')..."
-                  className="w-full p-2 text-xs rounded-xl bg-white border border-emerald-300 text-[#1A3460] placeholder-slate-400 focus:outline-none font-medium"
-                />
-              </div>
-
-              {liveUrl && (
-                <div className="pt-1 flex items-center justify-between">
-                  <a
-                    href={liveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-xl transition shadow-sm"
-                  >
-                    <span>Uji Buka Link Live</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-
-                  {status !== "PUBLISHED" && (
-                    <button
-                      type="button"
-                      onClick={() => handleSaveDetails("PUBLISHED")}
-                      className="text-xs font-black text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+          {/* Left Column: Media Previews, Editing Slots, Caption */}
+          <div className="lg:col-span-7 space-y-5">
+            {/* MEDIA PREVIEW: Bahan Mentah vs Hasil Editing */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Box 1: Bahan Mentah */}
+              <div className="bg-[#FFF8F3] border-2 border-[#1A3460]/20 rounded-2xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs font-black text-[#1A3460]">
+                  <span className="flex items-center gap-1">
+                    <UploadCloud className="w-3.5 h-3.5 text-[#1A3460]" />
+                    Bahan Mentah Lapangan:
+                  </span>
+                  {rawUrl && (
+                    <a
+                      href={rawUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-[#F35E50] hover:underline font-bold"
                     >
-                      <span>Ubah Status ke Live Sekarang</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                      Buka Media
+                    </a>
                   )}
                 </div>
-              )}
+
+                {rawUrl ? (
+                  rawUrl.match(/\.(mp4|webm|mov|m4v)/i) ? (
+                    <video
+                      src={rawUrl}
+                      controls
+                      className="w-full h-36 rounded-xl object-cover bg-black"
+                    />
+                  ) : (
+                    <img
+                      src={rawUrl}
+                      alt="Bahan Mentah"
+                      className="w-full h-36 rounded-xl object-cover"
+                    />
+                  )
+                ) : (
+                  <div className="h-36 rounded-xl border border-dashed border-[#1A3460]/20 flex items-center justify-center text-xs text-slate-400">
+                    Tidak ada file media langsung
+                  </div>
+                )}
+              </div>
+
+              {/* Box 2: Hasil Editing */}
+              <div className="bg-[#FFF8F3] border-2 border-[#F3BC6F] rounded-2xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs font-black text-[#F35E50]">
+                  <span className="flex items-center gap-1">
+                    <Wand2 className="w-3.5 h-3.5" />
+                    Hasil Editing Draft:
+                  </span>
+                  {editedUrl && (
+                    <a
+                      href={editedUrl}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-emerald-700 hover:underline font-bold"
+                    >
+                      Download
+                    </a>
+                  )}
+                </div>
+
+                {editedUrl ? (
+                  editedUrl.match(/\.(mp4|webm|mov|m4v)/i) ? (
+                    <video
+                      src={editedUrl}
+                      controls
+                      className="w-full h-36 rounded-xl object-cover bg-black"
+                    />
+                  ) : (
+                    <img
+                      src={editedUrl}
+                      alt="Hasil Edit"
+                      className="w-full h-36 rounded-xl object-cover"
+                    />
+                  )
+                ) : (
+                  <div className="h-36 rounded-xl border-2 border-dashed border-[#F3BC6F]/40 flex flex-col items-center justify-center text-center p-2 text-xs text-[#1A3460]/60 space-y-1">
+                    <span>Belum ada draft hasil edit</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Save Button for Left Section */}
+            {/* Quick Claim Bar if not claimed */}
+            {(!content.assignedToId || content.assignedToId === content.createdById) && status === "RAW_MATERIAL" && (
+              <div className="p-3.5 rounded-2xl bg-[#1A3460] text-white flex items-center justify-between gap-3">
+                <div className="text-xs">
+                  <div className="font-black text-[#F3BC6F]">Bahan ini belum ada editor!</div>
+                  <div className="text-[11px] text-white/80">Apakah Anda ingin mengambil bahan ini untuk diedit?</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClaim}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white text-xs font-black transition cursor-pointer"
+                >
+                  🖐️ Ambil Bahan Ini
+                </button>
+              </div>
+            )}
+
+            {/* Slot Upload / Ganti Hasil Edit Baru */}
+            <div className="bg-[#FFF8F3] border-2 border-[#1A3460]/15 rounded-2xl p-4 space-y-3">
+              <label className="text-xs font-black text-[#1A3460] uppercase tracking-wider flex items-center gap-1.5">
+                <UploadCloud className="w-4 h-4 text-[#F35E50]" />
+                Unggah File Hasil Edit Baru (Revisi v{(content.version || 1) + 1})
+              </label>
+
+              <FileUploadInput
+                label="Pilih File Video / Gambar Hasil Edit"
+                helperText="Upload video MP4 atau gambar PNG/JPG yang sudah diedit. Bisa juga link Canva."
+                value={newEditedFile?.url}
+                fileName={newEditedFile?.fileName}
+                fileSize={newEditedFile?.fileSize}
+                fileType={newEditedFile?.fileType}
+                onChange={(file) => setNewEditedFile(file)}
+              />
+            </div>
+
+            {/* Penugasan PIC Editor */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-black text-[#1A3460] mb-1">
+                  Editor yang Bertugas (PIC)
+                </label>
+                <select
+                  value={assignedToId}
+                  onChange={(e) => setAssignedToId(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] font-bold focus:outline-none focus:border-[#F35E50]"
+                >
+                  <option value="">-- Belum Ditugaskan --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-[#1A3460] mb-1">
+                  Catatan Revisi Terakhir
+                </label>
+                <input
+                  type="text"
+                  value={revisionNote}
+                  onChange={(e) => setRevisionNote(e.target.value)}
+                  placeholder="Poin perbaikan (opsional)..."
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] font-medium focus:outline-none focus:border-[#F35E50]"
+                />
+              </div>
+            </div>
+
+            {/* Draft Caption & Naskah */}
+            <div className="bg-[#FFF8F3] border-2 border-[#F3BC6F] rounded-2xl p-4 space-y-2">
+              <label className="text-xs font-black text-[#F35E50] uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-4 h-4" />
+                Draft Naskah & Caption Konten
+              </label>
+
+              <textarea
+                rows={4}
+                value={prepNotes}
+                onChange={(e) => setPrepNotes(e.target.value)}
+                placeholder="Tuliskan naskah hook, isi carousel, dan copywriting postingan..."
+                className="w-full p-3 text-xs rounded-xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] font-medium leading-relaxed"
+              />
+            </div>
+
+            {/* Tautan Live Hasil Pekerjaan */}
+            <div className="bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-400 rounded-2xl p-4 space-y-2">
+              <label className="text-xs font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-emerald-600" />
+                Link Postingan Live (Setelah Tayang)
+              </label>
+              <input
+                type="url"
+                value={liveUrl}
+                onChange={(e) => setLiveUrl(e.target.value)}
+                placeholder="https://www.instagram.com/p/... atau link TikTok live"
+                className="w-full p-2.5 text-xs rounded-xl bg-white border-2 border-emerald-400 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-emerald-600 font-bold"
+              />
+            </div>
+
+            {/* Save Buttons */}
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
@@ -332,7 +446,7 @@ export function ContentDetailModal({
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4 text-[#F3BC6F]" />
-                    <span>Simpan Perubahan Konten</span>
+                    <span>Simpan Perubahan</span>
                   </>
                 )}
               </button>
@@ -346,18 +460,15 @@ export function ContentDetailModal({
             </div>
           </div>
 
-          {/* Right Column: ClickUp Style Subtasks & Comments */}
+          {/* Right Column: ClickUp Style Subtasks & Discussion with Tagging */}
           <div className="lg:col-span-5 space-y-6">
-            {/* Additional Tasks (Subtasks ClickUp) */}
-            <div className="bg-[#FFF8F3] border-2 border-[#1A3460]/15 rounded-2xl p-4 sm:p-5 space-y-4">
+            {/* Subtasks Tim */}
+            <div className="bg-[#FFF8F3] border-2 border-[#1A3460]/15 rounded-2xl p-4 sm:p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black text-[#1A3460] uppercase tracking-wider flex items-center gap-1.5">
                   <CheckSquare className="w-4 h-4 text-[#F35E50]" />
-                  Task Tambahan Tim ({content.tasks?.length || 0})
+                  Checklist Task Tim ({content.tasks?.length || 0})
                 </h3>
-                <span className="text-[10px] text-[#1A3460]/60 font-bold">
-                  Saling bantu sesama admin
-                </span>
               </div>
 
               {/* Task Input Form */}
@@ -366,7 +477,7 @@ export function ContentDetailModal({
                   type="text"
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="+ Tambah tugas tambahan (misal: buat caption / revisi cover)..."
+                  placeholder="+ Tambah tugas tambahan (misal: potong 5 detik awal)..."
                   className="w-full px-3 py-2 text-xs rounded-xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] font-medium"
                 />
 
@@ -395,9 +506,9 @@ export function ContentDetailModal({
               </form>
 
               {/* Task Items List */}
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                 {(!content.tasks || content.tasks.length === 0) ? (
-                  <p className="text-xs text-slate-400 italic text-center py-3">
+                  <p className="text-xs text-slate-400 italic text-center py-2">
                     Belum ada subtask tambahan.
                   </p>
                 ) : (
@@ -451,28 +562,45 @@ export function ContentDetailModal({
               </div>
             </div>
 
-            {/* Comments & Team Feedback */}
+            {/* Diskusi Tim dengan Tagging @Mention */}
             <div className="bg-white border-2 border-[#1A3460]/15 rounded-2xl p-4 sm:p-5 space-y-4">
-              <h3 className="text-xs font-black text-[#1A3460] uppercase tracking-wider flex items-center gap-1.5">
-                Komentar & Diskusi Tim ({content.comments?.length || 0})
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-[#1A3460] uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-[#F35E50]" />
+                  Diskusi & Review Tim ({content.comments?.length || 0})
+                </h3>
+                <span className="text-[10px] text-[#F35E50] font-black">
+                  Gunakan @ untuk mention
+                </span>
+              </div>
 
               {/* Comments Feed */}
-              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                 {(!content.comments || content.comments.length === 0) ? (
-                  <p className="text-xs text-slate-400 italic text-center py-2">
-                    Belum ada komentar dari admin lain.
+                  <p className="text-xs text-slate-400 italic text-center py-4">
+                    Belum ada feedback dari tim. Tulis komentar atau mention anggota tim di bawah.
                   </p>
                 ) : (
                   content.comments.map((cm: any) => (
                     <div
                       key={cm.id}
-                      className="p-2.5 rounded-xl bg-[#FFF8F3] border border-[#1A3460]/10 space-y-1"
+                      className="p-3 rounded-xl bg-[#FFF8F3] border border-[#1A3460]/10 space-y-1"
                     >
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-black text-[#1A3460]">
-                          {cm.user?.name || "Admin"}
-                        </span>
+                        <div className="flex items-center gap-1.5 font-black text-[#1A3460]">
+                          <img
+                            src={
+                              cm.user?.avatar ||
+                              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+                            }
+                            alt=""
+                            className="w-4 h-4 rounded-full object-cover"
+                          />
+                          <span>{cm.user?.name || "Admin"}</span>
+                          <span className="text-[9px] px-1 rounded bg-[#1A3460]/10 text-[#1A3460]">
+                            {cm.user?.role || "TIM"}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-slate-400 font-bold">
                           {new Date(cm.createdAt).toLocaleTimeString("id-ID", {
                             hour: "2-digit",
@@ -480,31 +608,22 @@ export function ContentDetailModal({
                           })}
                         </span>
                       </div>
-                      <p className="text-xs text-[#1A3460]/85 font-medium leading-relaxed">
-                        {cm.message}
+                      <p className="text-xs text-[#1A3460]/90 font-medium leading-relaxed">
+                        {renderMentionedText(cm.message)}
                       </p>
                     </div>
                   ))
                 )}
               </div>
 
-              {/* Comment Input */}
-              <form onSubmit={handlePostComment} className="flex gap-2">
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Beri komentar atau feedback..."
-                  className="flex-1 px-3 py-2 text-xs rounded-xl bg-[#FFF8F3] border-2 border-[#1A3460]/15 text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] font-medium"
+              {/* Team Mention Input Component */}
+              <div className="pt-2 border-t border-[#1A3460]/10">
+                <TeamMentionInput
+                  users={users}
+                  onSend={handlePostComment}
+                  placeholder="Ketik komentar atau tag @Nama..."
                 />
-                <button
-                  type="submit"
-                  disabled={postingComment || !newComment.trim()}
-                  className="px-3 py-2 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white transition disabled:opacity-50 cursor-pointer"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
+              </div>
             </div>
           </div>
         </div>

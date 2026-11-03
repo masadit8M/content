@@ -12,7 +12,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message } = await request.json();
+    const { message, taggedUserId } = await request.json();
 
     if (!message || !message.trim()) {
       return NextResponse.json({ error: "Komentar tidak boleh kosong" }, { status: 400 });
@@ -23,9 +23,11 @@ export async function POST(
         contentId: params.id,
         userId: user.id,
         message: message.trim(),
+        taggedUserId: taggedUserId || null,
       },
       include: {
-        user: { select: { id: true, name: true, avatar: true, title: true } },
+        user: { select: { id: true, name: true, avatar: true, title: true, role: true } },
+        taggedUser: { select: { id: true, name: true, avatar: true, title: true, role: true } },
       },
     });
 
