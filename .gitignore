@@ -10,7 +10,7 @@ dist
 *.tsbuildinfo
 
 # SQLite
-prisma/*.db
+# dev.db is tracked for self-contained serverless deployment
 prisma/*.db-journal
 
 # Uploads

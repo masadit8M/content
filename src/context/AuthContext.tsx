@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { TEAM_MEMBERS, TeamMember } from "@/lib/team-data";
 
 export interface User {
   id: string;
@@ -22,40 +23,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const DEMO_PERSONAS = [
-  {
-    name: "Adit",
-    email: "adit@marketing.id",
-    roleLabel: "Marketing Lead & Strategist",
-    badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
-    description: "Supervisi seluruh campaign konten, review naskah & approval jadwal tayang",
-  },
-  {
-    name: "Sarah",
-    email: "sarah@marketing.id",
-    roleLabel: "Senior Content Creator",
-    badgeColor: "bg-pink-100 text-pink-800 border-pink-300",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    description: "Riset topik tren, susun naskah/copywriting, siapkan materi bahan persiapan",
-  },
-  {
-    name: "Bima",
-    email: "bima@marketing.id",
-    roleLabel: "Graphic & Motion Designer",
-    badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    description: "Produksi visual, carousel Canva/Figma, video rendering, dan packaging aset",
-  },
-  {
-    name: "Rani",
-    email: "rani@marketing.id",
-    roleLabel: "Social Media Admin",
-    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
-    description: "Publish konten live di IG/TikTok/YT, cantumkan link live, pantau engagement",
-  },
-];
+export const DEMO_PERSONAS = TEAM_MEMBERS;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);

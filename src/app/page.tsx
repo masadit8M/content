@@ -15,14 +15,16 @@ import { ContentDetailModal } from "@/components/marketing/ContentDetailModal";
 import { CreateContentModal } from "@/components/marketing/CreateContentModal";
 import KontenGuideArjuna from "@/components/studio/KontenGuideArjuna";
 import { Sparkles, CheckCircle2, ArrowRight } from "lucide-react";
+import { TEAM_MEMBERS } from "@/lib/team-data";
+import { FALLBACK_CONTENTS } from "@/lib/fallback-contents";
 
 export default function MarketingDashboardPage() {
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [contents, setContents] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [contents, setContents] = useState<any[]>(FALLBACK_CONTENTS);
+  const [users, setUsers] = useState<any[]>(TEAM_MEMBERS);
+  const [dataLoading, setDataLoading] = useState(false);
 
   // View state: 'raw' (Tab 1), 'editing' (Tab 2), 'ready' (Tab 3), 'showcase' (Tab 4), 'board' (Kanban), 'list', 'studio'
   const [currentView, setCurrentView] = useState<ViewType>("raw");

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Lock, Mail, Eye, EyeOff, Sparkles, CheckCircle } from "lucide-react";
+import { Lock, User, Eye, EyeOff, Sparkles, Zap } from "lucide-react";
+import { TEAM_MEMBERS } from "@/lib/team-data";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -26,7 +27,7 @@ export default function LoginPage() {
       if (res.ok) {
         window.location.href = "/";
       } else {
-        setError(data.error || "Login gagal. Silakan periksa kembali email dan password Anda.");
+        setError(data.error || "Login gagal. Silakan periksa kembali email atau username dan password Anda.");
       }
     } catch {
       setError("Terjadi gangguan koneksi ke server. Silakan coba lagi.");
@@ -35,14 +36,8 @@ export default function LoginPage() {
     }
   };
 
-  const setCredentials = (em: string, pw: string) => {
-    setEmail(em);
-    setPassword(pw);
-    setError("");
-  };
-
-  const handleQuickLogin = async (em: string, pw: string) => {
-    setEmail(em);
+  const handleQuickLogin = async (targetEmail: string, pw: string) => {
+    setEmail(targetEmail);
     setPassword(pw);
     try {
       setLoading(true);
@@ -51,14 +46,14 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: em.trim(), password: pw }),
+        body: JSON.stringify({ email: targetEmail.trim(), password: pw }),
       });
 
       const data = await res.json();
       if (res.ok) {
         window.location.href = "/";
       } else {
-        setError(data.error || "Login gagal. Silakan periksa kembali email dan password Anda.");
+        setError(data.error || "Login gagal. Silakan periksa kembali akun Anda.");
       }
     } catch {
       setError("Terjadi gangguan koneksi ke server. Silakan coba lagi.");
@@ -77,9 +72,9 @@ export default function LoginPage() {
         <div className="flex-1 bg-[#F9C5CB]"></div>
       </div>
 
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-lg my-6">
         {/* Brand header */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-5">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1A3460] text-[#F3BC6F] text-xs font-black mb-3 shadow-sm">
             <Sparkles className="w-3.5 h-3.5 text-[#F35E50]" />
             ContentOps • PAUD Arjuna Malang
@@ -88,14 +83,14 @@ export default function LoginPage() {
             ContentOps <span className="text-[#F35E50]">Arjuna</span>
           </h1>
           <p className="text-[#1A3460]/75 text-xs sm:text-sm mt-1 font-semibold">
-            Dashboard Kolaborasi Konten, Task Tim, & Showcase Hasil Live
+            Kolaborasi Konten Tim, Upload Bahan Mentah, Editing, & Siap Publish
           </p>
         </div>
 
         {/* Card Form */}
-        <div className="bg-white border-2 border-[#1A3460] rounded-3xl p-6 sm:p-7 shadow-xl space-y-5">
+        <div className="bg-white border-2 border-[#1A3460] rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-bold">
+            <div className="p-3.5 rounded-xl bg-rose-50 border-2 border-rose-200 text-rose-700 text-xs sm:text-sm font-bold animate-in fade-in">
               {error}
             </div>
           )}
@@ -103,16 +98,16 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-black text-[#1A3460] uppercase tracking-wider mb-1.5">
-                Email Akun Tim
+                Email atau Nama Akun Tim
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-[#1A3460]/40 absolute left-3.5 top-3.5" />
+                <User className="w-4 h-4 text-[#1A3460]/40 absolute left-3.5 top-3.5" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="masukkan email..."
+                  placeholder="Ketik 'adit' atau 'adit@marketing.id'..."
                   className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#FFF8F3] border-2 border-[#1A3460]/15 rounded-xl text-[#1A3460] placeholder-slate-400 focus:outline-none focus:border-[#F35E50] font-bold transition"
                 />
               </div>
@@ -151,51 +146,50 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Logins for Team Simulation */}
+          {/* Quick 1-Click Access for all 9 Team Members */}
           <div className="pt-4 border-t border-[#1A3460]/10">
-            <p className="text-[11px] font-black uppercase text-[#1A3460]/60 tracking-wider mb-2.5 text-center">
-              Akses Cepat 1-Klik Simulasi Admin
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("adit@marketing.id", "Admin#2026")}
-                className="p-2.5 text-left rounded-xl bg-[#FFF8F3] hover:bg-[#F3BC6F]/30 border border-[#1A3460]/15 transition cursor-pointer"
-              >
-                <div className="font-black text-[#1A3460]">Aditya Pratama</div>
-                <div className="text-[10px] text-[#F35E50] font-bold">Marketing Lead ⚡ 1-Klik</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("sarah@marketing.id", "Admin#2026")}
-                className="p-2.5 text-left rounded-xl bg-[#FFF8F3] hover:bg-[#F3BC6F]/30 border border-[#1A3460]/15 transition cursor-pointer"
-              >
-                <div className="font-black text-[#1A3460]">Sarah Amanda</div>
-                <div className="text-[10px] text-[#F35E50] font-bold">Content Creator ⚡ 1-Klik</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("bima@marketing.id", "Admin#2026")}
-                className="p-2.5 text-left rounded-xl bg-[#FFF8F3] hover:bg-[#F3BC6F]/30 border border-[#1A3460]/15 transition cursor-pointer"
-              >
-                <div className="font-black text-[#1A3460]">Bima Sakti</div>
-                <div className="text-[10px] text-[#F35E50] font-bold">Graphic Designer ⚡ 1-Klik</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("rani@marketing.id", "Admin#2026")}
-                className="p-2.5 text-left rounded-xl bg-[#FFF8F3] hover:bg-[#F3BC6F]/30 border border-[#1A3460]/15 transition cursor-pointer"
-              >
-                <div className="font-black text-[#1A3460]">Rani Puspita</div>
-                <div className="text-[10px] text-[#F35E50] font-bold">Social Media Admin ⚡ 1-Klik</div>
-              </button>
+            <div className="flex items-center justify-between mb-2.5">
+              <p className="text-[11px] font-black uppercase text-[#1A3460]/70 tracking-wider flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                Akses Cepat 1-Klik Tim (9 Akun)
+              </p>
+              <span className="text-[10px] text-slate-400 font-bold">Pilih persona</span>
             </div>
-            <p className="text-[10px] text-center text-slate-500 mt-2 font-semibold">
-              Password default semua persona: <code className="bg-[#FFF8F3] px-1 py-0.5 rounded border border-[#1A3460]/15 font-bold">Admin#2026</code>
-            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {TEAM_MEMBERS.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleQuickLogin(member.email, "Admin#2026")}
+                  className="p-2 text-left rounded-xl bg-[#FFF8F3] hover:bg-[#F3BC6F]/25 border border-[#1A3460]/15 transition cursor-pointer flex items-center gap-2 group active:scale-95"
+                >
+                  <img
+                    src={member.avatar}
+                    alt={member.name}
+                    className="w-8 h-8 rounded-full object-cover border border-[#F3BC6F] shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-black text-xs text-[#1A3460] truncate group-hover:text-[#F35E50]">
+                      {member.name}
+                    </div>
+                    <div className="text-[9px] text-[#F35E50] font-bold truncate">
+                      {member.roleLabel} ⚡
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
+              <p className="text-[11px] text-slate-600 font-medium">
+                Password default semua persona:{" "}
+                <code className="bg-white px-1.5 py-0.5 rounded border border-slate-300 font-black text-[#1A3460]">
+                  Admin#2026
+                </code>
+              </p>
+            </div>
           </div>
         </div>
       </div>

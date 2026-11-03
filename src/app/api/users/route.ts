@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { TEAM_MEMBERS } from "@/lib/team-data";
 
 export async function GET() {
   try {
@@ -9,20 +10,29 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        title: true,
-        role: true,
-        avatar: true,
-      },
-      orderBy: { name: "asc" },
-    });
+    try {
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          title: true,
+          role: true,
+          avatar: true,
+        },
+        orderBy: { name: "asc" },
+      });
 
-    return NextResponse.json({ users });
+      if (users && users.length > 0) {
+        return NextResponse.json({ users });
+      }
+    } catch (dbErr) {
+      console.warn("DB users query failed, returning static team members:", dbErr);
+    }
+
+    // Fallback: return 9 members
+    return NextResponse.json({ users: TEAM_MEMBERS });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ users: TEAM_MEMBERS });
   }
 }

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { TEAM_MEMBERS } from "../src/lib/team-data";
 
 const prisma = new PrismaClient();
 
@@ -10,52 +11,28 @@ async function main() {
   await prisma.marketingContent.deleteMany();
   await prisma.user.deleteMany();
 
-  console.log("👥 Membuat akun tim marketing PAUD Arjuna...");
+  console.log("👥 Membuat akun 9 anggota tim marketing PAUD Arjuna...");
   const defaultPasswordHash = await bcrypt.hash("Admin#2026", 10);
 
-  const adit = await prisma.user.create({
-    data: {
-      name: "Adit",
-      email: "adit@marketing.id",
-      passwordHash: defaultPasswordHash,
-      title: "Marketing Lead & Strategist",
-      role: "LEAD",
-      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
-    },
-  });
+  const createdUsers: Record<string, any> = {};
 
-  const sarah = await prisma.user.create({
-    data: {
-      name: "Sarah",
-      email: "sarah@marketing.id",
-      passwordHash: defaultPasswordHash,
-      title: "Senior Content Creator & Copywriter",
-      role: "CREATOR",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    },
-  });
+  for (const m of TEAM_MEMBERS) {
+    const user = await prisma.user.create({
+      data: {
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        passwordHash: defaultPasswordHash,
+        title: m.title,
+        role: m.role,
+        avatar: m.avatar,
+      },
+    });
+    createdUsers[m.username] = user;
+    console.log(`✅ User dibuat: ${m.name} (${m.email}) - ${m.title}`);
+  }
 
-  const bima = await prisma.user.create({
-    data: {
-      name: "Bima",
-      email: "bima@marketing.id",
-      passwordHash: defaultPasswordHash,
-      title: "Graphic & Motion Designer",
-      role: "DESIGNER",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    },
-  });
-
-  const rani = await prisma.user.create({
-    data: {
-      name: "Rani",
-      email: "rani@marketing.id",
-      passwordHash: defaultPasswordHash,
-      title: "Social Media Admin & Ads Specialist",
-      role: "ADMIN",
-      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
-    },
-  });
+  const { adit, tika, shania, titin, cindy, anggi, lena, novi, roshella } = createdUsers;
 
   console.log("🚀 Membuat data alur konten (Bahan Mentah -> Editing -> Siap Upload -> Live)...");
 
@@ -72,7 +49,7 @@ async function main() {
       rawAssetUrl: "https://assets.mixkit.co/videos/preview/mixkit-little-girl-playing-with-educational-toys-42618-large.mp4",
       rawAssetName: "VID_BrainGym_Pagi.mp4",
       rawAssetType: "VIDEO",
-      createdById: rani.id,
+      createdById: anggi.id,
       assignedToId: null, // Belum diambil
     },
   });
@@ -80,9 +57,9 @@ async function main() {
   await prisma.contentComment.create({
     data: {
       contentId: raw1.id,
-      userId: rani.id,
-      message: "Footage baru dari Bu Guru kelas TK A nih. @Bima atau @Sarah monggo diambil untuk dibikin video reels seru ya!",
-      taggedUserId: bima.id,
+      userId: anggi.id,
+      message: "Footage baru dari Bu Guru kelas TK A nih. @Shania atau @Titin monggo diambil untuk dibikin video reels seru ya!",
+      taggedUserId: shania.id,
     },
   });
 
@@ -96,7 +73,7 @@ async function main() {
       rawAssetUrl: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800&auto=format&fit=crop&q=80",
       rawAssetName: "IMG_Sensory_Play_Full.jpg",
       rawAssetType: "IMAGE",
-      createdById: sarah.id,
+      createdById: tika.id,
       assignedToId: null,
     },
   });
@@ -104,9 +81,33 @@ async function main() {
   await prisma.contentComment.create({
     data: {
       contentId: raw2.id,
-      userId: sarah.id,
-      message: "Foto-fotonya resolusi tinggi. @Bima bisa bantu layout ke template Canva PAUD Arjuna?",
-      taggedUserId: bima.id,
+      userId: tika.id,
+      message: "Foto-fotonya resolusi tinggi. @Cindy bisa bantu layout ke template Canva PAUD Arjuna?",
+      taggedUserId: cindy.id,
+    },
+  });
+
+  const raw3 = await prisma.marketingContent.create({
+    data: {
+      title: "Klip Singkat: Kegiatan Makan Sehat Bersama & Doa Makan Mandiri",
+      description: "Potongan video anak belajar cuci tangan dan makan buah bersama teman-teman.",
+      platform: "TIKTOK",
+      contentType: "TIKTOK_VIDEO",
+      status: "RAW_MATERIAL",
+      rawAssetUrl: "https://assets.mixkit.co/videos/preview/mixkit-little-girl-playing-with-educational-toys-42618-large.mp4",
+      rawAssetName: "VID_MakanSehat_Doa.mp4",
+      rawAssetType: "VIDEO",
+      createdById: lena.id,
+      assignedToId: null,
+    },
+  });
+
+  await prisma.contentComment.create({
+    data: {
+      contentId: raw3.id,
+      userId: lena.id,
+      message: "@Shania klip ini lucu banget pas anak-anak berdoa, bisa dipotong 15 detik buat TikTok!",
+      taggedUserId: shania.id,
     },
   });
 
@@ -125,8 +126,8 @@ async function main() {
       editedAssetName: "Draft_Reels_Kemandirian_v1.mp4",
       version: 1,
       prepNotes: "Draft Naskah:\n1. Hook: 'Ayah Bunda, sering nggak anak nangis tiap diminta pakai sepatu sendiri?'\n2. Solusi: Metode 'Choice of Two' di PAUD Arjuna.\n3. CTA: Save postingan ini & ikut Free Trial Daycare!",
-      createdById: sarah.id,
-      assignedToId: bima.id, // Bima sedang mengerjakan
+      createdById: tika.id,
+      assignedToId: shania.id, // Shania sedang mengerjakan
     },
   });
 
@@ -134,15 +135,15 @@ async function main() {
     data: [
       {
         contentId: edit1.id,
-        userId: bima.id,
+        userId: shania.id,
         message: "Draft video v1 sudah saya upload di tab hasil edit ya. @Adit mohon review hook awal 3 detik.",
         taggedUserId: adit.id,
       },
       {
         contentId: edit1.id,
         userId: adit.id,
-        message: "@Bima transisinya sudah halus! Tambahin logo Arjuna di detik 0-3 ya.",
-        taggedUserId: bima.id,
+        message: "@Shania transisinya sudah halus! Tambahin logo Arjuna di pojok kanan atas ya.",
+        taggedUserId: shania.id,
       },
     ],
   });
@@ -157,19 +158,19 @@ async function main() {
       rawAssetUrl: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&auto=format&fit=crop&q=80",
       editedAssetUrl: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&auto=format&fit=crop&q=80",
       version: 2,
-      revisionNote: "@Bima tolong teks slide 2 fontnya diganti warna navy #1A3460 agar terbaca jelas, dan tambahkan hashtag #DaycareMalang.",
+      revisionNote: "@Titin tolong teks slide 2 fontnya diganti warna navy #1A3460 agar terbaca jelas, dan tambahkan hashtag #DaycareMalang.",
       prepNotes: "Slide 1: Anak diam pegang HP vs Anak aktif di Daycare Arjuna\nSlide 2: Bahaya speech delay akibat pasif screen time\nSlide 3: Stimulasi multisensori di PAUD Arjuna",
       createdById: adit.id,
-      assignedToId: bima.id,
+      assignedToId: titin.id,
     },
   });
 
   await prisma.contentComment.create({
     data: {
       contentId: edit2.id,
-      userId: adit.id,
-      message: "🔁 @Bima slide 2 perlu revisi sedikit ya, fontnya kurang kontras. Silakan cek catatan revisi.",
-      taggedUserId: bima.id,
+      userId: roshella.id,
+      message: "🔁 @Titin slide 2 perlu revisi sedikit ya, fontnya kurang kontras. Silakan cek catatan revisi.",
+      taggedUserId: titin.id,
     },
   });
 
@@ -195,8 +196,8 @@ Di PAUD & Daycare Arjuna Malang, kami memastikan setiap sudut ruangan aman, higi
 📲 Klik link di bio untuk konsultasi trial gratis!
 
 #PAUDArjuna #DaycareMalang #TKSensoriMalang #ParentingMalang #SekolahRamahAnak`,
-      createdById: sarah.id,
-      assignedToId: rani.id, // Rani yang upload
+      createdById: tika.id,
+      assignedToId: anggi.id, // Anggi yang upload
       targetDate: new Date(Date.now() + 4 * 60 * 60 * 1000), // Siap tayang hari ini
     },
   });
@@ -206,13 +207,13 @@ Di PAUD & Daycare Arjuna Malang, kami memastikan setiap sudut ruangan aman, higi
       {
         contentId: ready1.id,
         userId: adit.id,
-        message: "✅ Sudah diapprove! @Rani tolong dijadwalkan tayang jam 18:30 WIB ya, itu peak hour Bunda pulang kantor.",
-        taggedUserId: rani.id,
+        message: "✅ Sudah diapprove! @Anggi tolong dijadwalkan tayang jam 18:30 WIB ya, itu peak hour Bunda pulang kantor.",
+        taggedUserId: anggi.id,
       },
       {
         contentId: ready1.id,
-        userId: rani.id,
-        message: "Siap mas Adit! File video dan caption sudah siap tinggal copas.",
+        userId: anggi.id,
+        message: "Siap mas Adit! File video dan caption sudah siap tinggal dipublish.",
         taggedUserId: adit.id,
       },
     ],
@@ -233,25 +234,25 @@ Di PAUD & Daycare Arjuna Malang, kami memastikan setiap sudut ruangan aman, higi
       liveNote: "Diposting jam 17:00 WIB. Reach 2.400+, 120 saves, dan 5 DM bertanya biaya pendaftaran.",
       prepNotes: "Edukasi Golden Age anak usia 0-6 tahun. Lengkap dengan logo PAUD Arjuna di setiap slide.",
       publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      createdById: sarah.id,
-      assignedToId: rani.id,
+      createdById: tika.id,
+      assignedToId: anggi.id,
     },
   });
 
   await prisma.contentComment.create({
     data: {
       contentId: live1.id,
-      userId: rani.id,
-      message: "🎉 Konten sudah tayang live dan engagement sangat bagus! Komen orang tua positif sekali.",
+      userId: novi.id,
+      message: "🎉 @Adit Konten sudah tayang live dan engagement sangat bagus! Ads boosting sudah diaktifkan.",
+      taggedUserId: adit.id,
     },
   });
 
-  console.log("✅ Seed database pipeline tim marketing berhasil diperbarui!");
+  console.log("✅ Seed database pipeline 9 anggota tim marketing berhasil!");
   console.log("Akun tim tersedia (Password: Admin#2026):");
-  console.log("1. adit@marketing.id (Marketing Lead)");
-  console.log("2. sarah@marketing.id (Content Creator)");
-  console.log("3. bima@marketing.id (Graphic & Motion Designer)");
-  console.log("4. rani@marketing.id (Social Media Admin)");
+  for (const m of TEAM_MEMBERS) {
+    console.log(`- ${m.username} / ${m.email} (${m.name} - ${m.title})`);
+  }
 }
 
 main()

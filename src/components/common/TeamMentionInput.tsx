@@ -2,9 +2,10 @@
 
 import React, { useState } from "react";
 import { Send, AtSign, Sparkles } from "lucide-react";
+import { TEAM_MEMBERS } from "@/lib/team-data";
 
 interface TeamMentionInputProps {
-  users: any[];
+  users?: any[];
   onSend: (message: string, taggedUserId?: string) => Promise<void>;
   placeholder?: string;
   className?: string;
@@ -16,6 +17,7 @@ export function TeamMentionInput({
   placeholder = "Tulis komentar atau instruksi revisi (gunakan @ untuk tag tim)...",
   className = "",
 }: TeamMentionInputProps) {
+  const activeUsers = users && users.length > 0 ? users : TEAM_MEMBERS;
   const [message, setMessage] = useState("");
   const [taggedUserId, setTaggedUserId] = useState<string | undefined>(undefined);
   const [sending, setSending] = useState(false);
@@ -37,7 +39,7 @@ export function TeamMentionInput({
     // Detect if message has @name and match taggedUserId if not set
     let detectedTaggedId = taggedUserId;
     if (!detectedTaggedId) {
-      for (const u of users) {
+      for (const u of activeUsers) {
         if (message.toLowerCase().includes(`@${u.name.toLowerCase()}`)) {
           detectedTaggedId = u.id;
           break;
@@ -63,7 +65,7 @@ export function TeamMentionInput({
           <AtSign className="w-3 h-3 text-[#F35E50]" />
           Tag Tim:
         </span>
-        {users.map((u) => {
+        {activeUsers.map((u) => {
           const isTagged = message.includes(`@${u.name}`);
           return (
             <button
@@ -75,10 +77,10 @@ export function TeamMentionInput({
                   ? "bg-[#F35E50] text-white border-[#F35E50] shadow-sm"
                   : "bg-white hover:bg-[#F3BC6F]/20 text-[#1A3460] border-[#1A3460]/20"
               }`}
-              title={`Tag @${u.name} (${u.role})`}
+              title={`Tag @${u.name} (${u.role || u.roleLabel})`}
             >
               <span>@{u.name}</span>
-              <span className="text-[9px] opacity-75 font-semibold">({u.role})</span>
+              <span className="text-[9px] opacity-75 font-semibold">({u.role || u.roleLabel})</span>
             </button>
           );
         })}
@@ -105,11 +107,11 @@ export function TeamMentionInput({
 
           {/* Dropdown Tag Menu */}
           {showTagMenu && (
-            <div className="absolute bottom-full mb-1 left-0 w-64 bg-white border-2 border-[#1A3460] rounded-xl shadow-xl z-20 p-2 space-y-1 animate-in fade-in zoom-in-95">
+            <div className="absolute bottom-full mb-1 left-0 w-64 bg-white border-2 border-[#1A3460] rounded-xl shadow-xl z-20 p-2 space-y-1 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto">
               <p className="text-[10px] font-black uppercase text-[#1A3460]/60 px-2 py-1">
                 Pilih Anggota Tim untuk Ditag:
               </p>
-              {users.map((u) => (
+              {activeUsers.map((u) => (
                 <button
                   key={u.id}
                   type="button"
@@ -124,7 +126,7 @@ export function TeamMentionInput({
                     />
                     <span>@{u.name}</span>
                   </div>
-                  <span className="text-[10px] text-[#F35E50] font-black">{u.role}</span>
+                  <span className="text-[10px] text-[#F35E50] font-black">{u.role || u.roleLabel}</span>
                 </button>
               ))}
             </div>

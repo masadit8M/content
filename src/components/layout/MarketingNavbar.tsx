@@ -141,7 +141,7 @@ export function MarketingNavbar({
                       Simulasi Ganti Akun Admin Tim
                     </p>
                   </div>
-                  <div className="space-y-1 my-1">
+                  <div className="space-y-1 my-1 max-h-80 overflow-y-auto pr-1">
                     {DEMO_PERSONAS.map((p) => {
                       const isActive = currentUser?.email === p.email;
                       return (
