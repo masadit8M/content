@@ -64,10 +64,21 @@ export function CreateContentModal({
       const finalRawUrl = rawFile?.url || assetUrl.trim() || null;
       const finalRawName = rawFile?.fileName || null;
       let rawType = "DOCUMENT";
-      if (rawFile?.fileType?.startsWith("video/") || contentType?.includes("VIDEO") || contentType === "REELS") {
+      if (
+        rawFile?.fileType?.startsWith("video/") ||
+        contentType?.includes("VIDEO") ||
+        contentType === "REELS" ||
+        finalRawUrl?.match(/\.(mp4|webm|mov|m4v)/i)
+      ) {
         rawType = "VIDEO";
-      } else if (rawFile?.fileType?.startsWith("image/") || contentType === "FEED_CAROUSEL") {
+      } else if (
+        rawFile?.fileType?.startsWith("image/") ||
+        contentType === "FEED_CAROUSEL" ||
+        finalRawUrl?.match(/\.(jpg|jpeg|png|webp)/i)
+      ) {
         rawType = "IMAGE";
+      } else if (finalRawUrl?.includes("drive.google.com") || finalRawUrl?.includes("canva.com")) {
+        rawType = "LINK";
       }
 
       const res = await fetch("/api/contents", {

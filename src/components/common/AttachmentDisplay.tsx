@@ -100,6 +100,46 @@ export function AttachmentDisplay({
             const itemIsVideo = isVideo(item.url, item.fileType);
             const itemIsPdf = isPdf(item.url, item.fileType);
             const itemIsSheet = isSpreadsheet(item.url, item.fileType);
+            const itemIsDrive = item.url.includes("drive.google.com");
+            const itemIsCanva = item.url.includes("canva.com");
+
+            if (itemIsDrive || itemIsCanva) {
+              return (
+                <div
+                  key={item.id || idx}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl border-2 border-[#1A3460]/20 bg-[#FFF8F3] hover:border-[#F35E50] shadow-sm transition max-w-md w-full"
+                >
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
+                      itemIsDrive
+                        ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                        : "bg-indigo-50 text-indigo-600 border-indigo-200"
+                    }`}
+                  >
+                    <ExternalLink className="w-5 h-5" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-black text-[#1A3460] truncate">
+                      {item.fileName || (itemIsDrive ? "Google Drive Folder" : "Canva Project")}
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-semibold truncate">
+                      {itemIsDrive ? "Bahan mentah / footage cloud" : "Template desain Canva"}
+                    </p>
+                  </div>
+
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-[#1A3460] hover:bg-[#F35E50] text-white text-xs font-black transition flex items-center gap-1.5 shadow-xs shrink-0"
+                  >
+                    <span>Buka</span>
+                    <ExternalLink className="w-3 h-3 text-[#F3BC6F]" />
+                  </a>
+                </div>
+              );
+            }
 
             if (itemIsImage) {
               return (
