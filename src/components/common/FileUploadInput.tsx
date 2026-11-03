@@ -39,7 +39,7 @@ interface FileUploadInputProps {
 
 export function FileUploadInput({
   label = "📸 Lampiran Foto / Video / Dokumen (Bahan Mentah)",
-  helperText = "Upload foto/video langsung (maks 4.5MB) atau masukkan Link Google Drive / Canva untuk file video besar.",
+  helperText = "Upload foto & video langsung dari HP/Laptop (Cloud Storage) atau masukkan Link Google Drive / Canva.",
   value,
   fileName,
   fileType,
@@ -50,6 +50,8 @@ export function FileUploadInput({
 }: FileUploadInputProps) {
   const [activeTab, setActiveTab] = useState<"file" | "link">("file");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadStatusText, setUploadStatusText] = useState<string>("");
   const [dragOver, setDragOver] = useState(false);
   const [manualUrl, setManualUrl] = useState(value || "");
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
@@ -84,73 +86,137 @@ export function FileUploadInput({
 
   const uploadFile = async (file: File) => {
     setSizeWarning(null);
+    setUploadProgress(0);
     const sizeInMB = file.size / (1024 * 1024);
 
-    // Jika file > 4.5MB di Vercel, tampilkan panduan Google Drive
-    if (sizeInMB > 4.5) {
+    if (sizeInMB > 100) {
       setSizeWarning(
-        `File ini berukuran ${sizeInMB.toFixed(1)} MB. Serverless hosting membatasi upload langsung maks 4.5 MB. Untuk footage video besar dari kamera/HP, disarankan gunakan Tab 'Link Google Drive / Canva' agar kualitas original tidak terkompresi.`
+        `File ini berukuran ${sizeInMB.toFixed(1)} MB. Batas upload cloud langsung adalah 100 MB. Untuk footage video sangat besar, disarankan gunakan Tab 'Link Google Drive / Canva'.`
       );
     }
 
     try {
       setUploading(true);
-
-      // Coba upload ke endpoint /api/upload
-      const formData = new FormData();
-      formData.append("file", file);
+      setUploadStatusText("Menyiapkan koneksi cloud storage...");
 
       let uploadSuccess = false;
 
+      // 1. Prioritas Utama: Direct Signed Upload ke Supabase Storage (Bypass limit 4.5MB serverless)
       try {
-        const res = await fetch("/api/upload", {
+        const signRes = await fetch("/api/upload/sign", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            folder: "raw-materials",
+          }),
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.url) {
-            uploadSuccess = true;
-            onChange({
-              url: data.url,
-              fileName: data.fileName || file.name,
-              fileSize: data.fileSize || file.size,
-              fileType: data.fileType || file.type,
+        if (signRes.ok) {
+          const signData = await signRes.json();
+          if (signData.signedUrl) {
+            setUploadStatusText("Mengunggah berkas ke Cloud Storage...");
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open("PUT", signData.signedUrl);
+              xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+              xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                  const percent = Math.round((e.loaded / e.total) * 100);
+                  setUploadProgress(percent);
+                  setUploadStatusText(`Mengunggah ke Cloud: ${percent}%`);
+                }
+              };
+
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  uploadSuccess = true;
+                  onChange({
+                    url: signData.publicUrl,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                  });
+                  setManualUrl(signData.publicUrl);
+                  resolve();
+                } else {
+                  reject(new Error(`Direct upload status ${xhr.status}`));
+                }
+              };
+
+              xhr.onerror = () => reject(new Error("Network error during cloud direct upload"));
+              xhr.send(file);
             });
-            setManualUrl(data.url);
           }
         }
-      } catch (networkErr) {
-        console.warn("API upload failed, attempting client-side Data URL fallback:", networkErr);
+      } catch (cloudErr) {
+        console.warn("Direct signed upload failed, attempting fallback:", cloudErr);
       }
 
-      // Fallback cerdas: Jika API serverless gagal (misal EROFS atau limit size kecil), baca langsung via browser FileReader!
+      // 2. Fallback: Upload ke endpoint /api/upload
       if (!uploadSuccess) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          onChange({
-            url: dataUrl,
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type,
+        setUploadStatusText("Mencoba upload via server fallback...");
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
           });
-          setManualUrl(dataUrl);
-          setUploading(false);
-        };
-        reader.onerror = () => {
-          alert("Gagal membaca file dari perangkat Anda. Silakan coba lagi atau gunakan Link Google Drive.");
-          setUploading(false);
-        };
-        reader.readAsDataURL(file);
-        return;
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.url) {
+              uploadSuccess = true;
+              onChange({
+                url: data.url,
+                fileName: data.fileName || file.name,
+                fileSize: data.fileSize || file.size,
+                fileType: data.fileType || file.type,
+              });
+              setManualUrl(data.url);
+            }
+          }
+        } catch (serverErr) {
+          console.warn("Server upload failed:", serverErr);
+        }
+      }
+
+      // 3. Fallback terakhir: jika file kecil (< 4MB), simpan sebagai Data URL browser
+      if (!uploadSuccess) {
+        if (sizeInMB <= 4) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            onChange({
+              url: dataUrl,
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type,
+            });
+            setManualUrl(dataUrl);
+            setUploading(false);
+          };
+          reader.onerror = () => {
+            alert("Gagal membaca file dari perangkat Anda. Silakan coba lagi atau gunakan Link Google Drive.");
+            setUploading(false);
+          };
+          reader.readAsDataURL(file);
+          return;
+        } else {
+          alert(`Gagal mengunggah file (${sizeInMB.toFixed(1)} MB) ke cloud. Silakan coba lagi atau gunakan Link Google Drive.`);
+        }
       }
     } catch (err: any) {
       console.error("Upload error:", err);
       alert("Terjadi kesalahan saat memproses file. Silakan gunakan opsi Link Google Drive.");
     } finally {
       setUploading(false);
+      setUploadProgress(null);
+      setUploadStatusText("");
     }
   };
 
@@ -176,6 +242,8 @@ export function FileUploadInput({
     onChange(null);
     setManualUrl("");
     setSizeWarning(null);
+    setUploadProgress(null);
+    setUploadStatusText("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -281,25 +349,43 @@ export function FileUploadInput({
               className="hidden"
             />
 
-            <div className="flex flex-col items-center justify-center gap-2">
-              <div className="w-11 h-11 rounded-2xl bg-[#FFF8F3] border-2 border-[#F3BC6F] text-[#F35E50] flex items-center justify-center shadow-xs">
-                {uploading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-[#F35E50]" />
-                ) : (
-                  <UploadCloud className="w-6 h-6" />
-                )}
-              </div>
+            <div className="flex flex-col items-center justify-center gap-2.5 py-1">
+              {uploading ? (
+                <div className="flex flex-col items-center gap-2 w-full max-w-xs">
+                  <div className="w-11 h-11 rounded-2xl bg-[#FFF8F3] border-2 border-emerald-500 text-emerald-600 flex items-center justify-center shadow-xs">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                  <p className="text-xs sm:text-sm font-black text-[#1A3460]">
+                    {uploadStatusText || "Mengunggah berkas ke Cloud..."}
+                  </p>
+                  {uploadProgress !== null && (
+                    <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden shadow-inner mt-1">
+                      <div
+                        className="bg-emerald-500 h-2.5 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  )}
+                  <span className="text-[10px] text-slate-500 font-bold">
+                    Mohon tunggu hingga upload selesai (langsung ke Cloud Storage)
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div className="w-11 h-11 rounded-2xl bg-[#FFF8F3] border-2 border-[#F3BC6F] text-[#F35E50] flex items-center justify-center shadow-xs">
+                    <UploadCloud className="w-6 h-6" />
+                  </div>
 
-              <div>
-                <p className="text-xs sm:text-sm font-black text-[#1A3460]">
-                  {uploading
-                    ? "Sedang memproses berkas..."
-                    : "Klik untuk pilih foto / video dari HP / PC atau seret ke sini"}
-                </p>
-                <p className="text-[11px] text-[#1A3460]/60 mt-1 font-semibold">
-                  Mendukung JPG, PNG, MP4, MOV, WebM, PDF (Maks 4.5MB langsung)
-                </p>
-              </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-black text-[#1A3460]">
+                      Klik untuk pilih foto / video dari HP / PC atau seret ke sini
+                    </p>
+                    <p className="text-[11px] text-[#1A3460]/60 mt-1 font-semibold">
+                      Mendukung Foto (JPG, PNG, WebP) & Video (MP4, MOV, WebM) hingga 100MB
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-﻿import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { StorageService, UploadResult } from "./index";
 
 export class SupabaseStorageService implements StorageService {
@@ -11,7 +11,7 @@ export class SupabaseStorageService implements StorageService {
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       "";
-    this.bucketName = process.env.SUPABASE_STORAGE_BUCKET || "media";
+    this.bucketName = process.env.SUPABASE_STORAGE_BUCKET || "Media";
 
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey);
