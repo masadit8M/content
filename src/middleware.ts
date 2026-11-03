@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySessionToken, COOKIE_NAME } from "@/lib/jwt";
 
@@ -12,6 +12,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/me") ||
+    pathname.startsWith("/api/ai") ||
     pathname.startsWith("/icons") ||
     pathname.startsWith("/uploads") ||
     pathname.endsWith(".pdf") ||
@@ -24,11 +25,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // If user is already logged in and tries to access /login, redirect to home
+  // Allow login page without redirection loops
   if (isAuthPage) {
-    if (session) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
     return NextResponse.next();
   }
 

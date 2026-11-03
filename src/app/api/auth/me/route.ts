@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, COOKIE_NAME } from "@/lib/auth";
 
 export async function GET() {
   try {
     const user = await getCurrentUser();
 
     if (!user) {
-      return NextResponse.json({ user: null });
+      const res = NextResponse.json({ user: null });
+      res.cookies.delete(COOKIE_NAME);
+      return res;
     }
 
     return NextResponse.json({
@@ -16,21 +18,7 @@ export async function GET() {
         name: user.name,
         title: user.title,
         avatar: user.avatar,
-        globalRole: user.globalRole,
-        organizations: user.organizationMemberships.map((om) => ({
-          id: om.organization.id,
-          name: om.organization.name,
-          type: om.organization.type,
-          role: om.role,
-        })),
-        projects: user.projectMemberships.map((pm) => ({
-          id: pm.project.id,
-          displayName: pm.project.displayName,
-          legalName: pm.project.legalName,
-          role: pm.role,
-          healthScore: pm.project.healthScore,
-          progress: pm.project.progressPercentage,
-        })),
+        role: user.role,
       },
     });
   } catch (error: any) {

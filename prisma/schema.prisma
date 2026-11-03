@@ -1,7 +1,6 @@
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -14,503 +13,78 @@ model User {
   name         String
   passwordHash String
   avatar       String?
-  title        String?  // e.g. "Lead Consultant", "Owner / Decision Maker", "Kepala Daycare"
-  phone        String?
-  globalRole   String   @default("CLIENT_USER") // "ARJUNA_SUPER_ADMIN", "ARJUNA_CONSULTANT", "CLIENT_USER"
+  title        String?  // e.g. "Marketing Lead", "Content Creator", "Graphic Designer", "Social Media Specialist"
+  role         String   @default("ADMIN") // "LEAD", "CREATOR", "DESIGNER", "ADMIN"
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  organizationMemberships OrganizationMember[]
-  projectMemberships      ProjectMember[]
-  createdActivities       ActivityLog[]          @relation("CreatedActivities")
-  reportedActivities      ActivityLog[]          @relation("ReportedActivities")
-  personalDiaries         PersonalDiary[]
-  assignedTasks           Task[]                 @relation("AssignedTasks")
-  createdTasks            Task[]                 @relation("CreatedTasks")
-  createdRecommendations  Recommendation[]
-  clientDecisions         RecommendationDecision[]
-  assignedIssues          Issue[]                @relation("AssignedIssues")
-  reportedIssues          Issue[]                @relation("ReportedIssues")
-  requestedSDMs           SDMRequest[]
-  sdmApprovals            SDMApproval[]
-  uploadedVersions        DocumentVersion[]
-  reportsGenerated        Report[]
-  comments                Comment[]
-  notifications           Notification[]
-  auditLogs               AuditLog[]
-  mediaUploads            MediaDocumentation[]
+  createdContents   MarketingContent[] @relation("CreatedContents")
+  assignedContents  MarketingContent[] @relation("AssignedContents")
+  createdTasks      ContentTask[]      @relation("CreatedTasks")
+  assignedTasks     ContentTask[]      @relation("AssignedTasks")
+  comments          ContentComment[]
 }
 
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  type      String   @default("CLIENT") // "CONSULTANT", "CLIENT"
-  logo      String?
-  createdAt DateTime @default(now())
-
-  members            OrganizationMember[]
-  consultantProjects Project[]            @relation("ConsultantOrg")
-  clientProjects     Project[]            @relation("ClientOrg")
-}
-
-model OrganizationMember {
-  id             String       @id @default(cuid())
-  userId         String
-  organizationId String
-  role           String       @default("MEMBER") // "OWNER", "ADMIN", "MEMBER"
-  createdAt      DateTime     @default(now())
-
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, organizationId])
-}
-
-model Project {
-  id                  String   @id @default(cuid())
-  displayName         String   // e.g. "Rumah Nara Islamic Child Center"
-  legalName           String   // e.g. "Ruang Nara / CV Santara Artha"
-  clientOrgId         String
-  consultantOrgId     String
-  startDate           DateTime
-  endDate             DateTime
-  status              String   @default("ACTIVE") // "ACTIVE", "STABILIZATION", "COMPLETED", "ON_HOLD"
-  healthScore         String   @default("GREEN")  // "GREEN", "YELLOW", "RED"
-  progressPercentage  Int      @default(0)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  clientOrg     Organization @relation("ClientOrg", fields: [clientOrgId], references: [id])
-  consultantOrg Organization @relation("ConsultantOrg", fields: [consultantOrgId], references: [id])
-
-  members         ProjectMember[]
-  categories      Category[]
-  phases          ProjectPhase[]
-  milestones      Milestone[]
-  activities      ActivityLog[]
-  tasks           Task[]
-  recommendations Recommendation[]
-  issues          Issue[]
-  sdmRequests     SDMRequest[]
-  documents       Document[]
-  reports         Report[]
-  auditLogs       AuditLog[]
-  mediaDocs       MediaDocumentation[]
-  personalDiaries PersonalDiary[]
-}
-
-model ProjectMember {
-  id        String   @id @default(cuid())
-  projectId String
-  userId    String
-  role      String   // "ARJUNA_SUPER_ADMIN", "ARJUNA_CONSULTANT", "CLIENT_OWNER", "CLIENT_MANAGER", "TEAM_MEMBER"
-  createdAt DateTime @default(now())
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([projectId, userId])
-}
-
-model Category {
-  id        String   @id @default(cuid())
-  projectId String
-  name      String
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  activities      ActivityLog[]
-  tasks           Task[]
-  recommendations Recommendation[]
-  issues          Issue[]
-  documents       Document[]
-}
-
-model ProjectPhase {
-  id        String   @id @default(cuid())
-  projectId String
-  name      String   // e.g. "Initial Assessment", "Preparation", "Pre-Opening", "Opening", "Stabilization"
-  order     Int      @default(1)
-  status    String   @default("NOT_STARTED") // "NOT_STARTED", "IN_PROGRESS", "COMPLETED"
-  createdAt DateTime @default(now())
-
-  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestones      Milestone[]
-  activities      ActivityLog[]
-  tasks           Task[]
-  recommendations Recommendation[]
-  issues          Issue[]
-}
-
-model Milestone {
-  id            String       @id @default(cuid())
-  projectId     String
-  phaseId       String?
-  title         String
-  targetDate    DateTime
-  completedDate DateTime?
-  status        String       @default("PENDING") // "PENDING", "COMPLETED", "OVERDUE"
-  createdAt     DateTime     @default(now())
-
-  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  phase   ProjectPhase? @relation(fields: [phaseId], references: [id], onDelete: SetNull)
-}
-
-model ActivityLog {
-  id              String   @id @default(cuid())
-  projectId       String
-  categoryId      String?
-  phaseId         String?
-  title           String
-  activityType    String   @default("CONSULTATION") // "CONSULTATION", "MEETING", "TRAINING", "SUPERVISION", "SITE_VISIT", "DOCUMENT_PREPARATION", "REVIEW", "DISCUSSION", "EVALUATION", "OTHER"
-  date            DateTime
-  startTime       String?  // e.g. "09:00"
-  endTime         String?  // e.g. "11:15"
-  durationMinutes Int      @default(60)
-  description     String
-  participants    String?  // e.g. "Rahmadhita (Arjuna), Ryan (Owner), Kepala Daycare, 5 Teachers"
-  outcome         String?
-  finding         String?
-  nextAction      String?
-  scopeStatus     String   @default("IN_SCOPE") // "IN_SCOPE", "ADDITIONAL_REQUEST", "OUTSIDE_ORIGINAL_SCOPE"
-  createdById     String
-  location        String?  // e.g. "Daycare Rumah Nara", "Daring / Zoom", "Kantor Arjuna"
-  status          String   @default("COMPLETED") // "SCHEDULED", "COMPLETED", "CANCELLED"
-  mediaUrl        String?  // Foto/video lampiran dokumentasi
-  reportToUserId  String?  // Lapor ke user siapa (primary)
-  reportedUserIds String?  // JSON array daftar user ID pelaporan misal '["user1", "user2"]'
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  category        Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  phase           ProjectPhase?    @relation(fields: [phaseId], references: [id], onDelete: SetNull)
-  createdBy       User             @relation("CreatedActivities", fields: [createdById], references: [id])
-  reportToUser    User?            @relation("ReportedActivities", fields: [reportToUserId], references: [id], onDelete: SetNull)
-  tasks           Task[]
-  recommendations Recommendation[]
-  issues          Issue[]
-  documents       Document[]
-}
-
-model Task {
-  id               String    @id @default(cuid())
-  taskCode         String?   // e.g. "TASK-024"
-  projectId        String
-  categoryId       String?
-  phaseId          String?
-  title            String
-  description      String?
-  priority         String    @default("NORMAL") // "LOW", "NORMAL", "HIGH", "URGENT"
-  status           String    @default("TO_DO")  // "BACKLOG", "TO_DO", "IN_PROGRESS", "WAITING_CLIENT", "WAITING_CONSULTANT", "BLOCKED", "DONE", "CANCELLED"
-  assignedToId     String?
-  createdById      String
-  startDate        DateTime?
-  dueDate          DateTime?
-  completedDate    DateTime?
-  scopeStatus      String    @default("IN_SCOPE") // "IN_SCOPE", "ADDITIONAL_REQUEST", "OUTSIDE_ORIGINAL_SCOPE"
-  activityId       String?
-  recommendationId String?
-  issueId          String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  category       Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  phase          ProjectPhase?    @relation(fields: [phaseId], references: [id], onDelete: SetNull)
-  assignedTo     User?            @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy      User             @relation("CreatedTasks", fields: [createdById], references: [id])
-  activity       ActivityLog?     @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  recommendation Recommendation?  @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
-  issue          Issue?           @relation(fields: [issueId], references: [id], onDelete: SetNull)
-  checklist      TaskChecklist[]
-  documents      Document[]
-}
-
-model TaskChecklist {
-  id          String   @id @default(cuid())
-  taskId      String
-  title       String
-  isCompleted Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-}
-
-model Recommendation {
-  id                   String    @id @default(cuid())
-  recCode              String?   // e.g. "REC-014"
-  projectId            String
-  categoryId           String?
-  phaseId              String?
-  activityId           String?
-  title                String
-  problemBackground    String
-  consultantAnalysis   String
-  recommendationText   String
-  expectedOutcome      String?
-  priority             String    @default("NORMAL") // "LOW", "NORMAL", "HIGH", "URGENT"
-  status               String    @default("SUBMITTED") // "DRAFT", "SUBMITTED", "UNDER_DISCUSSION", "APPROVED", "REJECTED", "REVISION_REQUESTED", "IMPLEMENTING", "IMPLEMENTED", "VERIFIED", "CLOSED"
-  scopeStatus          String    @default("IN_SCOPE") // "IN_SCOPE", "ADDITIONAL_REQUEST", "OUTSIDE_ORIGINAL_SCOPE"
-  decisionRequiredFrom String?   // e.g. "Ryan (Client Owner)"
-  decisionDeadline     DateTime?
-  createdById          String
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-
-  project   Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  category  Category?                @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  phase     ProjectPhase?            @relation(fields: [phaseId], references: [id], onDelete: SetNull)
-  activity  ActivityLog?             @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  createdBy User                     @relation(fields: [createdById], references: [id])
-  decisions RecommendationDecision[]
-  tasks     Task[]
-  documents Document[]
-}
-
-model RecommendationDecision {
-  id               String   @id @default(cuid())
-  recommendationId String
-  decision         String   // "APPROVED", "REJECTED", "REVISION_REQUESTED", "NEED_DISCUSSION"
-  decisionById     String
-  decisionAt       DateTime @default(now())
-  comment          String?
-  generatedTaskId  String?
-
-  recommendation Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
-  decisionBy     User           @relation(fields: [decisionById], references: [id])
-}
-
-model Issue {
-  id                 String    @id @default(cuid())
-  issueCode          String?   // e.g. "ISSUE-019"
-  projectId          String
-  categoryId         String?
-  phaseId            String?
-  activityId         String?
-  title              String
-  problem            String
-  impact             String?
-  consultantAnalysis String?
-  recommendation     String?
-  severity           String    @default("MEDIUM") // "LOW", "MEDIUM", "HIGH", "CRITICAL"
-  status             String    @default("OPEN")   // "OPEN", "INVESTIGATING", "ACTION_REQUIRED", "MONITORING", "RESOLVED", "CLOSED"
-  assignedToId       String?
-  reportedById       String
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  category   Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  phase      ProjectPhase? @relation(fields: [phaseId], references: [id], onDelete: SetNull)
-  activity   ActivityLog? @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  assignedTo User?        @relation("AssignedIssues", fields: [assignedToId], references: [id], onDelete: SetNull)
-  reportedBy User         @relation("ReportedIssues", fields: [reportedById], references: [id])
-  tasks      Task[]
-  documents  Document[]
-}
-
-model SDMRequest {
-  id                 String    @id @default(cuid())
-  requestCode        String?   // e.g. "SDM-003"
-  projectId          String
-  position           String    // e.g. "Lead Teacher", "Assistant Teacher", "Cook"
-  personnelCount     Int       @default(1)
-  requestedStartDate DateTime
-  duration           String    // e.g. "6 Bulan", "1 Tahun"
-  workSchedule       String    // e.g. "Senin - Jumat, 07.00 - 16.00"
-  duties             String
-  location           String
-  reason             String
-  additionalNotes    String?
-  status             String    @default("SUBMITTED") // "DRAFT", "SUBMITTED", "UNDER_REVIEW", "PROPOSAL_SENT", "AWAITING_APPROVAL", "APPROVED", "REJECTED", "ASSIGNED", "ACTIVE", "COMPLETED", "CANCELLED"
-  requestedById      String
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  requestedBy User            @relation(fields: [requestedById], references: [id])
-  proposals   SDMProposal[]
-  assignments SDMAssignment[]
-}
-
-model SDMProposal {
-  id                String   @id @default(cuid())
-  sdmRequestId      String
-  proposedPersonnel String   // e.g. "Ustazah Aulia (S1 PGPAUD, Pengalaman 3 Tahun)"
-  schedule          String
-  monthlyCost       Float
-  additionalCost    Float    @default(0)
-  totalCost         Float
-  notes             String?
-  createdAt         DateTime @default(now())
-
-  sdmRequest SDMRequest    @relation(fields: [sdmRequestId], references: [id], onDelete: Cascade)
-  approvals  SDMApproval[]
-}
-
-model SDMApproval {
-  id            String   @id @default(cuid())
-  sdmProposalId String
-  decision      String   // "APPROVED", "REJECTED", "DISCUSS"
-  decisionById  String
-  decisionAt    DateTime @default(now())
-  comment       String?
-
-  sdmProposal SDMProposal @relation(fields: [sdmProposalId], references: [id], onDelete: Cascade)
-  decisionBy  User        @relation(fields: [decisionById], references: [id])
-}
-
-model SDMAssignment {
-  id            String    @id @default(cuid())
-  sdmRequestId  String
-  personnelName String
-  startDate     DateTime
-  endDate       DateTime?
-  status        String    @default("ACTIVE") // "ACTIVE", "COMPLETED", "TERMINATED"
-  createdAt     DateTime  @default(now())
-
-  sdmRequest SDMRequest @relation(fields: [sdmRequestId], references: [id], onDelete: Cascade)
-}
-
-model Document {
-  id                 String   @id @default(cuid())
-  docCode            String?  // e.g. "DOC-005"
-  projectId          String
-  categoryId         String?
-  title              String
-  folder             String   @default("SOP") // "SOP", "CURRICULUM", "TRAINING", "EVALUATION", "SDM", "MEETING_NOTES", "REPORTS", "OTHER"
-  status             String   @default("DRAFT") // "DRAFT", "UNDER_REVIEW", "REVISION_REQUIRED", "APPROVED", "ARCHIVED"
-  isConsultingOutput Boolean  @default(false)
-  outputStatus       String?  // "PENDING", "DELIVERED", "REVIEWED", "APPROVED"
-  relatedActivityId  String?
-  relatedTaskId      String?
-  relatedRecId       String?
-  relatedIssueId     String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  relatedActivity ActivityLog?      @relation(fields: [relatedActivityId], references: [id], onDelete: SetNull)
-  relatedTask     Task?             @relation(fields: [relatedTaskId], references: [id], onDelete: SetNull)
-  relatedRec      Recommendation?   @relation(fields: [relatedRecId], references: [id], onDelete: SetNull)
-  relatedIssue    Issue?            @relation(fields: [relatedIssueId], references: [id], onDelete: SetNull)
-  versions        DocumentVersion[]
-}
-
-model DocumentVersion {
-  id            String   @id @default(cuid())
-  documentId    String
-  versionNumber Int      @default(1)
-  fileName      String
-  filePath      String
-  fileSize      Int      @default(0)
-  uploadedById  String
-  changeNotes   String?
-  createdAt     DateTime @default(now())
-
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  uploadedBy User     @relation(fields: [uploadedById], references: [id])
-}
-
-model Report {
-  id               String   @id @default(cuid())
-  reportCode       String?  // e.g. "REP-2026-09-15"
-  projectId        String
-  type             String   // "DAILY", "WEEKLY", "MONTHLY"
-  title            String
-  periodStart      DateTime
-  periodEnd        DateTime
-  status           String   @default("DRAFT") // "DRAFT", "FINALIZED"
-  version          Int      @default(1)
-  executiveSummary String?
-  keyObservations  String?
-  consultantNotes  String?
-  nextPriorities   String?
-  metricsJson      String   // JSON snapshot of activities count, tasks, issues, recommendations
-  generatedById    String
-  generatedAt      DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  generatedBy User    @relation(fields: [generatedById], references: [id])
-}
-
-model Comment {
-  id         String   @id @default(cuid())
-  entityType String   // "TASK", "RECOMMENDATION", "ISSUE", "ACTIVITY", "SDM_REQUEST", "DOCUMENT"
-  entityId   String
-  userId     String
-  content    String
-  createdAt  DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  projectId String?
-  title     String
-  message   String
-  linkUrl   String?
-  type      String   @default("GENERAL") // "TASK", "RECOMMENDATION", "DECISION", "ISSUE", "SDM", "DOCUMENT", "MENTION"
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model AuditLog {
-  id          String   @id @default(cuid())
-  projectId   String?
-  userId      String
-  action      String   // "CREATE", "UPDATE", "STATUS_CHANGE", "CLIENT_DECISION", "COST_APPROVAL", "UPLOAD_VERSION", "FINALIZE"
-  entityType  String   // "TASK", "RECOMMENDATION", "ISSUE", "SDM", "DOCUMENT", "ACTIVITY", "REPORT"
-  entityId    String
-  description String
-  changesJson String?
-  createdAt   DateTime @default(now())
-
-  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model MediaDocumentation {
-  id           String   @id @default(cuid())
-  projectId    String
+model MarketingContent {
+  id           String    @id @default(cuid())
   title        String
-  description  String?
-  category     String   @default("OPERATIONAL") // "OPERATIONAL", "SOP", "FACILITY", "CHILD_ACTIVITY", "TRAINING"
-  fileType     String   // "IMAGE", "VIDEO"
-  fileUrl      String
-  fileName     String
-  fileSize     Int      @default(0)
-  uploadedById  String
-  targetType    String   @default("ALL") // "ALL" (Semua Tim) or "SPECIFIC" (User Tertentu)
-  targetUserIds String?  // JSON array of user IDs: e.g. ["usr_1", "usr_2"]
-  createdAt     DateTime @default(now())
+  description  String?   // Brief / Konsep utama
+  platform     String    @default("INSTAGRAM") // "INSTAGRAM", "TIKTOK", "YOUTUBE", "LINKEDIN", "WEBSITE", "FACEBOOK"
+  contentType  String    @default("FEED_CAROUSEL") // "REELS", "FEED_CAROUSEL", "STORY", "TIKTOK_VIDEO", "YOUTUBE_VIDEO", "BANNER", "ARTICLE"
+  status       String    @default("IN_PREPARATION") // "IDEA", "IN_PREPARATION", "IN_REVIEW", "READY_TO_PUBLISH", "PUBLISHED"
+  
+  // Persiapan yang sudah dibuat oleh admin
+  prepNotes    String?   // Catatan persiapan: draft caption, naskah/script, angle visual, bahan riset
+  assetUrl     String?   // Link asset/preview (Figma, Canva, Google Drive, file upload)
+  assetName    String?   // Nama file atau label asset
+  
+  // Hasil Live (Publish)
+  liveUrl      String?   // Link postingan live (Instagram, TikTok, YouTube, dll)
+  liveNote     String?   // Catatan saat live
+  publishedAt  DateTime? // Waktu dipublikasikan
+  
+  targetDate   DateTime? // Target tanggal tayang
+  
+  createdById  String
+  createdBy    User      @relation("CreatedContents", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  assignedToId String?
+  assignedTo   User?     @relation("AssignedContents", fields: [assignedToId], references: [id], onDelete: SetNull)
 
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploadedBy User    @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  tasks        ContentTask[]
+  comments     ContentComment[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
-model PersonalDiary {
-  id          String   @id @default(cuid())
-  userId      String
-  projectId   String?
-  title       String
-  date        DateTime @default(now())
-  content     String
-  tags        String?  // e.g. "Observasi Guru", "Catatan Mandiri", "Pribadi"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+model ContentTask {
+  id           String    @id @default(cuid())
+  contentId    String
+  content      MarketingContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  
+  title        String    // Deskripsi task tambahan
+  isCompleted  Boolean   @default(false)
+  
+  createdById  String
+  createdBy    User      @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  assignedToId String?
+  assignedTo   User?     @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  dueDate      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
-
+model ContentComment {
+  id        String   @id @default(cuid())
+  contentId String
+  content   MarketingContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  message   String
+  createdAt DateTime @default(now())
+}

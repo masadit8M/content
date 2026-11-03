@@ -1,7 +1,7 @@
-﻿import { SignJWT, jwtVerify } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 
 const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "arjuna_consulting_workspace_secret_key_super_secure_2026"
+  process.env.JWT_SECRET || "arjuna_marketing_workspace_secret_key_super_secure_2026"
 );
 
 export const COOKIE_NAME = "arjuna_session";
@@ -10,7 +10,7 @@ export interface SessionPayload {
   userId: string;
   email: string;
   name: string;
-  globalRole: string;
+  role: string;
 }
 
 export async function createSessionToken(payload: SessionPayload): Promise<string> {

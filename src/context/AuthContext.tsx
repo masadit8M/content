@@ -1,40 +1,20 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export interface UserProject {
-  id: string;
-  displayName: string;
-  legalName: string;
-  role: string;
-  healthScore: string;
-  progress: number;
-}
-
-export interface UserOrganization {
+export interface User {
   id: string;
   name: string;
-  type: string;
-  role: string;
-}
-
-export interface UserProfile {
-  id: string;
   email: string;
-  name: string;
-  title: string | null;
-  avatar: string | null;
-  globalRole: string;
-  organizations: UserOrganization[];
-  projects: UserProject[];
+  title?: string;
+  role: string;
+  avatar?: string;
 }
 
 interface AuthContextType {
-  user: UserProfile | null;
+  currentUser: User | null;
   loading: boolean;
-  activeProjectId: string | null;
-  setActiveProjectId: (id: string) => void;
   switchPersona: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -44,126 +24,103 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const DEMO_PERSONAS = [
   {
-    name: "Mbak Tika",
-    email: "tika@arjuna.id",
-    organization: "Tim Arjuna",
-    roleLabel: "Konsultan Pendamping (In-Charge)",
+    name: "Adit",
+    email: "adit@marketing.id",
+    roleLabel: "Marketing Lead & Strategist",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+    description: "Supervisi seluruh campaign konten, review naskah & approval jadwal tayang",
+  },
+  {
+    name: "Sarah",
+    email: "sarah@marketing.id",
+    roleLabel: "Senior Content Creator",
+    badgeColor: "bg-pink-100 text-pink-800 border-pink-300",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    description: "Riset topik tren, susun naskah/copywriting, siapkan materi bahan persiapan",
+  },
+  {
+    name: "Bima",
+    email: "bima@marketing.id",
+    roleLabel: "Graphic & Motion Designer",
+    badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    description: "Produksi visual, carousel Canva/Figma, video rendering, dan packaging aset",
+  },
+  {
+    name: "Rani",
+    email: "rani@marketing.id",
+    roleLabel: "Social Media Admin",
     badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
     avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
-    description: "Mencatat aktivitas kunjungan, temuan, dan memberi rekomendasi",
-  },
-  {
-    name: "Ms. Tsania",
-    email: "tsania@rumahnara.id",
-    organization: "Rumah Nara",
-    roleLabel: "Kepala Daycare (Client Manager)",
-    badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    description: "Mengerjakan tugas operasional & menyetujui rekomendasi harian",
-  },
-  {
-    name: "Mr. Ryan",
-    email: "ryan@rumahnara.id",
-    organization: "Rumah Nara",
-    roleLabel: "Owner / Decision Maker",
-    badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-300",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    description: "Pengambil keputusan strategis & persetujuan biaya SDM",
-  },
-  {
-    name: "Mas Adit",
-    email: "masadit@arjuna.id",
-    organization: "Tim Arjuna",
-    roleLabel: "Lead Consultant & Admin",
-    badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
-    description: "Supervisi kualitas & koordinasi manajemen",
-  },
-  {
-    name: "Cindy",
-    email: "cindy@arjuna.id",
-    organization: "Tim Arjuna",
-    roleLabel: "Spesialis Kurikulum & SOP",
-    badgeColor: "bg-amber-100 text-amber-800 border-amber-300",
-    avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
-    description: "Penyusunan modul SOP & materi pembelajaran",
-  },
-  {
-    name: "Lena",
-    email: "lena@arjuna.id",
-    organization: "Tim Arjuna",
-    roleLabel: "Spesialis SDM & Pelatihan",
-    badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
-    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
-    description: "Penyediaan & seleksi tenaga guru pendamping",
+    description: "Publish konten live di IG/TikTok/YT, cantumkan link live, pantau engagement",
   },
 ];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const router = useRouter();
 
-  const fetchUser = async () => {
+  const refreshUser = async () => {
     try {
-      setLoading(true);
       const res = await fetch("/api/auth/me");
-      const data = await res.json();
-      if (data.user) {
-        setUser(data.user);
-        if (data.user.projects?.length > 0) {
-          setActiveProjectId(data.user.projects[0].id);
-        }
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentUser(data.user);
       } else {
-        setUser(null);
+        setCurrentUser(null);
       }
-    } catch (err) {
-      console.error("Failed to load user:", err);
+    } catch {
+      setCurrentUser(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUser();
+    refreshUser();
   }, []);
 
   const switchPersona = async (email: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
       const res = await fetch("/api/auth/switch-persona", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+
       if (res.ok) {
-        await fetchUser();
+        await refreshUser();
         router.refresh();
       }
     } catch (err) {
-      console.error("Failed to switch persona:", err);
+      console.error("Gagal ganti persona:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    router.push("/login");
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setCurrentUser(null);
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Gagal logout:", err);
+      window.location.href = "/login";
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        currentUser,
         loading,
-        activeProjectId,
-        setActiveProjectId,
         switchPersona,
         logout,
-        refreshUser: fetchUser,
+        refreshUser,
       }}
     >
       {children}

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       userId: user.id,
       email: user.email,
       name: user.name,
-      globalRole: user.globalRole,
+      role: user.role,
     });
 
     const response = NextResponse.json({
@@ -31,7 +31,9 @@ export async function POST(request: Request) {
         id: user.id,
         email: user.email,
         name: user.name,
-        globalRole: user.globalRole,
+        role: user.role,
+        title: user.title,
+        avatar: user.avatar,
       },
     });
 

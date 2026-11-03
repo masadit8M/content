@@ -18,61 +18,31 @@ export async function getCurrentUser() {
   const cookieStore = cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 
-  let userId: string | null = null;
-
-  if (token) {
-    const session = await verifySessionToken(token);
-    if (session?.userId) {
-      userId = session.userId;
-    }
-  }
+  if (!token) return null;
 
   try {
-    if (userId) {
+    const session = await verifySessionToken(token);
+    if (!session) return null;
+
+    // 1. Coba cari berdasarkan userId
+    if (session.userId) {
       const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          organizationMemberships: {
-            include: { organization: true },
-          },
-          projectMemberships: {
-            include: { project: true },
-          },
-        },
+        where: { id: session.userId },
+      });
+      if (user) return user;
+    }
+
+    // 2. Fallback cerdas: cari berdasarkan email jika DB sempat di-reseed
+    if (session.email) {
+      const user = await prisma.user.findUnique({
+        where: { email: session.email.toLowerCase() },
       });
       if (user) return user;
     }
 
     return null;
-  } catch {
+  } catch (err) {
+    console.error("Error getCurrentUser:", err);
     return null;
   }
-}
-
-export async function getProjectRole(projectId: string, userId: string) {
-  const member = await prisma.projectMember.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId,
-      },
-    },
-  });
-  return member?.role ?? null;
-}
-
-export async function requireProjectMembership(projectId: string) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("Unauthorized: Silakan login terlebih dahulu");
-
-  if (user.globalRole === "ARJUNA_SUPER_ADMIN") {
-    return { user, role: "ARJUNA_SUPER_ADMIN" };
-  }
-
-  const role = await getProjectRole(projectId, user.id);
-  if (!role) {
-    throw new Error("Forbidden: Anda tidak memiliki akses ke proyek ini");
-  }
-
-  return { user, role };
 }
