@@ -7519,7 +7519,7 @@ function SelectField({ label, value, onChange, children }) {
   );
 }
 
-export default function App({ onSendToTasks, initialTopic }) {
+export default function App({ onSendToTasks = undefined, initialTopic = "" }) {
   return (
     <CanvasErrorBoundary>
       <AppInner onSendToTasks={onSendToTasks} initialTopic={initialTopic} />

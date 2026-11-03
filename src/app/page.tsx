@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   MarketingNavbar,
@@ -9,15 +9,11 @@ import {
 import { BrandIdentityBar } from "@/components/marketing/BrandIdentityBar";
 import { MarketingSchedulePanel } from "@/components/marketing/MarketingSchedulePanel";
 import { BrainstormKickstarter } from "@/components/marketing/BrainstormKickstarter";
-import { StatsBanner } from "@/components/marketing/StatsBanner";
 import { RawMaterialView } from "@/components/marketing/RawMaterialView";
-import { ProductionReviewView } from "@/components/marketing/ProductionReviewView";
-import { ReadyToPublishView } from "@/components/marketing/ReadyToPublishView";
-import { LiveShowcaseGallery } from "@/components/marketing/LiveShowcaseGallery";
+import { UploadKontenView } from "@/components/marketing/UploadKontenView";
 import { ContentDetailModal } from "@/components/marketing/ContentDetailModal";
 import { CreateContentModal } from "@/components/marketing/CreateContentModal";
 import KontenGuideArjuna from "@/components/studio/KontenGuideArjuna";
-import { useToast } from "@/components/common/Toast";
 import { TEAM_MEMBERS } from "@/lib/team-data";
 import {
   PlanItem,
@@ -26,36 +22,24 @@ import {
   getPlanItem,
   getPlanLabel,
   getThemeText,
+  buildStudioTopic,
 } from "@/lib/marketing-plan";
-import {
-  splitScriptAndCaption,
-  mapStudioPlatform,
-} from "@/lib/content-utils";
-import { createContent } from "@/lib/content-actions";
-import {
-  Sparkles,
-  ArrowLeft,
-  Filter,
-  Plus,
-  X,
-  Search,
-} from "lucide-react";
+import { getPublishedLinks } from "@/lib/content-utils";
+import { Sparkles, Filter, Plus, X, Search } from "lucide-react";
 
 export default function MarketingDashboardPage() {
   const { currentUser, loading: authLoading } = useAuth();
-  const toast = useToast();
 
   const [contents, setContents] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>(TEAM_MEMBERS);
   const [dataLoading, setDataLoading] = useState(true);
 
-  // Tahap aktif di Bank Konten atau Studio Lengkap
+  // 4 Tab Utama: "raw" | "published" | "schedule" | "studio"
   const [currentView, setCurrentView] = useState<ViewType>("raw");
-  const [selectedPlatform, setSelectedPlatform] = useState("ALL");
   const [selectedThemeId, setSelectedThemeId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Tema fokus untuk modul Brainstorm Cepat di bagian awal
+  // Konteks untuk Studio Ide (ketika klik "💡 Cari Ide" dari Jadwal)
   const [brainstormThemeId, setBrainstormThemeId] = useState<string>(
     () => getMonthTheme(getSchoolPosition(new Date()).m).id
   );
@@ -65,12 +49,9 @@ export default function MarketingDashboardPage() {
   const [selectedContent, setSelectedContent] = useState<any | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createDefaultMode, setCreateDefaultMode] = useState<
-    "RAW" | "PROPOSAL"
+    "RAW" | "FINISHED"
   >("RAW");
   const [createDefaultThemeId, setCreateDefaultThemeId] = useState<string>("");
-
-  const brainstormRef = useRef<HTMLDivElement>(null);
-  const vaultRef = useRef<HTMLDivElement>(null);
 
   const fetchContents = async () => {
     try {
@@ -117,90 +98,54 @@ export default function MarketingDashboardPage() {
     }
   }, [currentUser, authLoading]);
 
-  const handleOpenStudio = (topic?: string) => {
-    if (topic && typeof topic === "string") {
-      setStudioInitialTopic(topic);
+  // Setiap ganti tab dari Navbar, langsung tampilkan di atas layar tanpa terhalang panel lain
+  const handleViewChange = (nextView: ViewType) => {
+    setCurrentView(nextView);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
-    setCurrentView("studio");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleBrainstormFromSchedule = (item: PlanItem) => {
     setBrainstormThemeId(item.id);
-    brainstormRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    setStudioInitialTopic(buildStudioTopic(item, new Date()));
+    handleViewChange("studio");
   };
 
-  const handleCreateForTheme = (themeId: string) => {
+  const handleCreateForTheme = (
+    themeId: string,
+    mode: "RAW" | "FINISHED" = "RAW"
+  ) => {
     setCreateDefaultThemeId(themeId);
-    setCreateDefaultMode(currentView === "review" ? "PROPOSAL" : "RAW");
+    setCreateDefaultMode(mode);
     setShowCreateModal(true);
   };
 
-  // Jembatan dari Studio Lengkap (KontenGuideArjuna) ke Bank Konten
-  const handleStudioSendToBank = async (data: {
-    title: string;
-    description?: string;
-    platform?: string;
-    contentType?: string;
-    prepNotes?: string;
-  }) => {
-    const { script, caption } = splitScriptAndCaption(data.prepNotes);
-    const mapped = mapStudioPlatform(data.platform);
-    const activeTheme =
-      getPlanItem(selectedThemeId || brainstormThemeId) ||
-      getMonthTheme(getSchoolPosition(new Date()).m);
-
-    const res = await createContent({
-      title: data.title || "Brief Studio Ide PAUD Arjuna",
-      description:
-        data.description || "Disusun melalui Studio Ide Konten PAUD Arjuna",
-      platform: mapped?.platform || data.platform || "INSTAGRAM",
-      contentType: mapped?.contentType || data.contentType || "FEED_CAROUSEL",
-      status: "IDEA",
-      origin: "STUDIO",
-      themeId: activeTheme.id,
-      themeLabel: getPlanLabel(activeTheme),
-      prepNotes: script || data.prepNotes || "",
-      caption: caption || null,
-    });
-
-    if (res.ok) {
-      await fetchContents();
-      toast(`Brief "${data.title}" berhasil disimpan ke Bank Bahan Mentah!`, {
-        action: {
-          label: "Buka Bank Konten →",
-          onClick: () => setCurrentView("raw"),
-        },
-      });
-    } else {
-      toast(res.error || "Gagal menyimpan brief dari Studio.", {
-        tone: "error",
-      });
-    }
-  };
-
-  // Filter konten berdasarkan platform, tema jadwal, dan kata kunci pencarian
+  // Filter konten berdasarkan tema jadwal dan kata kunci pencarian
   const filteredContents = contents.filter((item) => {
-    const matchesPlatform =
-      selectedPlatform === "ALL" || item.platform === selectedPlatform;
-    const matchesTheme =
-      !selectedThemeId || item.themeId === selectedThemeId;
+    const matchesTheme = !selectedThemeId || item.themeId === selectedThemeId;
 
     const query = searchQuery.trim().toLowerCase();
-    const themeLabel = getThemeText(item.themeId, item.themeLabel).toLowerCase();
+    if (!query) return matchesTheme;
+
+    const themeLabel = getThemeText(
+      item.themeId,
+      item.themeLabel
+    ).toLowerCase();
+    const linksStr = getPublishedLinks(item)
+      .map((l) => `${l.platform} ${l.url}`)
+      .join(" ")
+      .toLowerCase();
+
     const matchesSearch =
-      !query ||
       item.title?.toLowerCase().includes(query) ||
       item.description?.toLowerCase().includes(query) ||
       item.prepNotes?.toLowerCase().includes(query) ||
       item.caption?.toLowerCase().includes(query) ||
-      item.liveUrl?.toLowerCase().includes(query) ||
+      linksStr.includes(query) ||
       themeLabel.includes(query);
 
-    return matchesPlatform && matchesTheme && matchesSearch;
+    return matchesTheme && matchesSearch;
   });
 
   if (authLoading || (!currentUser && !dataLoading)) {
@@ -211,7 +156,7 @@ export default function MarketingDashboardPage() {
             <Sparkles className="w-6 h-6 text-white" />
           </div>
           <span className="text-sm font-black text-[#1A3460]">
-            Memuat sesi Bank Konten PAUD Arjuna...
+            Memuat Bank Konten PAUD Arjuna...
           </span>
         </div>
       </div>
@@ -226,197 +171,148 @@ export default function MarketingDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#FFF8F3] text-[#1A3460] flex flex-col">
-      {/* Top Navbar */}
+      {/* Top Navbar dengan 4 Tab Responsif */}
       <MarketingNavbar
         contents={contents}
         currentView={currentView}
-        onViewChange={setCurrentView}
-        selectedPlatform={selectedPlatform}
-        onPlatformChange={setSelectedPlatform}
+        onViewChange={handleViewChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onOpenCreateModal={() => {
           setCreateDefaultThemeId(selectedThemeId || brainstormThemeId || "");
-          setCreateDefaultMode(currentView === "review" ? "PROPOSAL" : "RAW");
+          setCreateDefaultMode(
+            currentView === "published" ? "FINISHED" : "RAW"
+          );
           setShowCreateModal(true);
         }}
       />
 
+      {/* TAB 4: STUDIO IDE (Murni Pengaya Brainstorming Ide — Tanpa Kirim Task) */}
       {currentView === "studio" ? (
-        /* Mode Studio Lengkap */
         <div className="flex-1 w-full flex flex-col">
-          <div className="bg-[#FFF8F3] border-b border-[#1A3460]/15 px-4 sm:px-6 py-2.5">
-            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setCurrentView("raw")}
-                className="px-3.5 py-1.5 rounded-xl bg-[#1A3460] hover:bg-[#122544] text-[#F3BC6F] text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                Kembali ke Jadwal & Bank Konten
-              </button>
-              <span className="text-xs font-bold text-[#1A3460]/75">
-                Setiap naskah/storyboard yang Anda simpan otomatis masuk ke <strong>Tab 1 (Bank Bahan Mentah & Brief)</strong>.
-              </span>
-            </div>
+          <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-2">
+            <BrainstormKickstarter focusThemeId={brainstormThemeId} />
           </div>
 
           <div className="flex-1 w-full">
-            <KontenGuideArjuna
-              onSendToTasks={handleStudioSendToBank}
-              initialTopic={studioInitialTopic}
-            />
+            <KontenGuideArjuna initialTopic={studioInitialTopic} />
           </div>
         </div>
       ) : (
-        /* Mode Utama: Brand Kit + Jadwal Marketing + Brainstorm Ide + 4 Tahap Bank Konten */
-        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-5">
           {/* Pencarian Mobile */}
-          <div className="md:hidden">
-            <div className="relative">
-              <Search className="w-4 h-4 text-[#1A3460]/50 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari judul, tema, atau caption..."
-                className="w-full pl-9 pr-4 py-2.5 text-xs rounded-2xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] font-semibold focus:outline-none focus:border-[#F35E50]"
+          {currentView !== "schedule" && (
+            <div className="md:hidden">
+              <div className="relative">
+                <Search className="w-4 h-4 text-[#1A3460]/50 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari judul, tema, caption, atau link..."
+                  className="w-full pl-9 pr-4 py-2.5 text-xs rounded-2xl bg-white border-2 border-[#1A3460]/15 text-[#1A3460] font-semibold focus:outline-none focus:border-[#F35E50]"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Indikator Filter Tema Aktif (jika dipilih dari Tab Jadwal) */}
+          {selectedThemeId && currentView !== "schedule" && (
+            <div className="p-3.5 rounded-2xl bg-[#1A3460] text-white border-2 border-[#F3BC6F] flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-black">
+                <Filter className="w-4 h-4 text-[#F3BC6F]" />
+                <span>
+                  Filter Tema Aktif:{" "}
+                  <strong className="text-[#F3BC6F]">
+                    {activeFilterItem
+                      ? getPlanLabel(activeFilterItem)
+                      : selectedThemeId}
+                  </strong>{" "}
+                  ({filteredContents.length} item)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleCreateForTheme(
+                      selectedThemeId,
+                      currentView === "published" ? "FINISHED" : "RAW"
+                    )
+                  }
+                  className="px-3 py-1.5 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white text-xs font-black inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Upload ke Tema Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedThemeId("")}
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Tampilkan Semua
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 1: BAHAN MENTAH */}
+          {currentView === "raw" && (
+            <RawMaterialView
+              contents={filteredContents}
+              users={users}
+              onSelectContent={setSelectedContent}
+              onOpenCreateModal={() =>
+                handleCreateForTheme(
+                  selectedThemeId || brainstormThemeId,
+                  "RAW"
+                )
+              }
+              onRefresh={fetchContents}
+              onNavigateToPublished={() => handleViewChange("published")}
+            />
+          )}
+
+          {/* TAB 2: UPLOAD KONTEN & LINK TAYANG */}
+          {currentView === "published" && (
+            <UploadKontenView
+              allContents={contents}
+              filteredContents={filteredContents}
+              onSelectContent={setSelectedContent}
+              onOpenCreateFinishedModal={() =>
+                handleCreateForTheme(
+                  selectedThemeId || brainstormThemeId,
+                  "FINISHED"
+                )
+              }
+              onNavigateToRaw={() => handleViewChange("raw")}
+              onRefresh={fetchContents}
+            />
+          )}
+
+          {/* TAB 3: JADWAL MARKETING & BRAND IDENTITY */}
+          {currentView === "schedule" && (
+            <div className="space-y-6">
+              <BrandIdentityBar />
+              <MarketingSchedulePanel
+                contents={contents}
+                selectedThemeId={selectedThemeId}
+                onSelectThemeFilter={(id) => {
+                  setSelectedThemeId(id);
+                  if (id) {
+                    handleViewChange("published");
+                  }
+                }}
+                onBrainstormTheme={handleBrainstormFromSchedule}
+                onCreateForTheme={(id) => handleCreateForTheme(id, "RAW")}
               />
             </div>
-          </div>
-
-          {/* 1. Pengingat Brand Identity & Unduh Logo Resmi */}
-          <BrandIdentityBar />
-
-          {/* 2. Modul Brainstorm Ide Cepat (Bagian Awal jika Kehabisan Ide) */}
-          <div ref={brainstormRef}>
-            <BrainstormKickstarter
-              focusThemeId={brainstormThemeId}
-              onSavedToBank={fetchContents}
-              onOpenFullStudio={handleOpenStudio}
-              onNavigateToRaw={() => {
-                setCurrentView("raw");
-                vaultRef.current?.scrollIntoView({ behavior: "smooth" });
-              }}
-            />
-          </div>
-
-          {/* 3. Jadwal Marketing Konten (JADWAL MARKET KONTEN.xlsx) */}
-          <MarketingSchedulePanel
-            contents={contents}
-            selectedThemeId={selectedThemeId}
-            onSelectThemeFilter={(id) => {
-              setSelectedThemeId(id);
-              if (id) {
-                vaultRef.current?.scrollIntoView({ behavior: "smooth" });
-              }
-            }}
-            onBrainstormTheme={handleBrainstormFromSchedule}
-            onCreateForTheme={handleCreateForTheme}
-          />
-
-          {/* 4. Area Bank Konten Terpadu */}
-          <div ref={vaultRef} className="space-y-5 pt-2">
-            {/* Navigasi Ringkas 4 Tahap */}
-            <StatsBanner
-              contents={filteredContents}
-              currentView={currentView}
-              onSelectView={setCurrentView}
-            />
-
-            {/* Indikator Filter Tema Aktif */}
-            {selectedThemeId && (
-              <div className="p-3.5 rounded-2xl bg-[#1A3460] text-white border-2 border-[#F3BC6F] flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs font-black">
-                  <Filter className="w-4 h-4 text-[#F3BC6F]" />
-                  <span>
-                    Menampilkan Bank Konten untuk tema:{" "}
-                    <strong className="text-[#F3BC6F]">
-                      {activeFilterItem
-                        ? getPlanLabel(activeFilterItem)
-                        : selectedThemeId}
-                    </strong>{" "}
-                    ({filteredContents.length} konten)
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleCreateForTheme(selectedThemeId)}
-                    className="px-3 py-1.5 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white text-xs font-black inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Upload ke Tema Ini
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedThemeId("")}
-                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    Tampilkan Semua
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 1: BANK BAHAN MENTAH & BRIEF */}
-            {currentView === "raw" && (
-              <RawMaterialView
-                contents={filteredContents}
-                users={users}
-                onSelectContent={setSelectedContent}
-                onOpenCreateModal={(mode = "RAW") => {
-                  setCreateDefaultThemeId(selectedThemeId || brainstormThemeId);
-                  setCreateDefaultMode(mode);
-                  setShowCreateModal(true);
-                }}
-                onRefresh={fetchContents}
-                onNavigateToReview={() => setCurrentView("review")}
-                onNavigateToReady={() => setCurrentView("ready")}
-              />
-            )}
-
-            {/* TAB 2: HASIL EDIT & USULAN PRODUKSI MANDIRI */}
-            {currentView === "review" && (
-              <ProductionReviewView
-                contents={filteredContents}
-                users={users}
-                onSelectContent={setSelectedContent}
-                onOpenCreateModal={(mode = "PROPOSAL") => {
-                  setCreateDefaultThemeId(selectedThemeId || brainstormThemeId);
-                  setCreateDefaultMode(mode);
-                  setShowCreateModal(true);
-                }}
-                onRefresh={fetchContents}
-                onNavigateToReady={() => setCurrentView("ready")}
-              />
-            )}
-
-            {/* TAB 3: BANK KONTEN SIAP UPLOAD */}
-            {currentView === "ready" && (
-              <ReadyToPublishView
-                contents={filteredContents}
-                users={users}
-                onSelectContent={setSelectedContent}
-                onRefresh={fetchContents}
-                onNavigateToShowcase={() => setCurrentView("showcase")}
-                onNavigateToReview={() => setCurrentView("review")}
-              />
-            )}
-
-            {/* TAB 4: ARSIP TAYANG (LIVE) */}
-            {currentView === "showcase" && (
-              <LiveShowcaseGallery
-                contents={filteredContents}
-                onSelectContent={setSelectedContent}
-              />
-            )}
-          </div>
+          )}
         </main>
       )}
 
-      {/* Modal Detail Konten */}
+      {/* Modal Detail Item */}
       {selectedContent && (
         <ContentDetailModal
           key={`${selectedContent.id}-${selectedContent.updatedAt}`}
@@ -427,16 +323,15 @@ export default function MarketingDashboardPage() {
         />
       )}
 
-      {/* Modal Upload Konten Baru */}
+      {/* Modal Upload Baru */}
       {showCreateModal && (
         <CreateContentModal
-          users={users}
           defaultMode={createDefaultMode}
           defaultThemeId={createDefaultThemeId}
           onClose={() => setShowCreateModal(false)}
           onSuccess={(targetTab) => {
             fetchContents();
-            setCurrentView(targetTab);
+            handleViewChange(targetTab);
           }}
         />
       )}

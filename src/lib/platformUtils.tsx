@@ -7,7 +7,7 @@ import {
   Globe,
   Share2,
 } from "lucide-react";
-import { getStage, needsRevision, STAGE_META } from "./content-utils";
+import { getStage, STAGE_META } from "./content-utils";
 
 export function getPlatformBadge(platform?: string) {
   switch ((platform || "").toUpperCase()) {
@@ -50,7 +50,10 @@ export function getPlatformBadge(platform?: string) {
     case "WEBSITE":
     default:
       return {
-        label: platform || "Website",
+        label:
+          platform && platform.toUpperCase() !== "WEBSITE"
+            ? platform
+            : "Website / Lainnya",
         icon: <Globe className="w-3.5 h-3.5 text-emerald-600" />,
         className: "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold",
         btnColor: "bg-emerald-600 hover:bg-emerald-500 text-white",
@@ -61,14 +64,6 @@ export function getPlatformBadge(platform?: string) {
 export function getStatusBadge(itemOrStatus: any) {
   const item =
     typeof itemOrStatus === "string" ? { status: itemOrStatus } : itemOrStatus;
-
-  if (needsRevision(item)) {
-    return {
-      label: "🔁 Perlu Perbaikan",
-      className: "bg-rose-50 text-rose-800 border-rose-300 font-black",
-    };
-  }
-
   const stage = getStage(item);
   const meta = STAGE_META[stage];
   return {

@@ -46,14 +46,16 @@ const CONTENT_FIELDS = [
   "revisionNote",
   "version",
   "liveUrl",
+  "publishedLinks",
   "liveNote",
   "publishedAt",
+  "claimedAt",
   "targetDate",
   "assignedToId",
 ] as const;
 
-const DATE_FIELDS = new Set(["publishedAt", "targetDate"]);
-const JSON_FIELDS = new Set(["rawFiles", "editedFiles"]);
+const DATE_FIELDS = new Set(["publishedAt", "targetDate", "claimedAt"]);
+const JSON_FIELDS = new Set(["rawFiles", "editedFiles", "publishedLinks"]);
 
 /** Ambil hanya bidang yang diizinkan dan rapikan nilainya (array → JSON, "" → null). */
 function pickContentFields(input: any): Record<string, any> {
@@ -225,8 +227,12 @@ export async function createContentItem(data: any, currentUser: any): Promise<an
     revisionNote: fields.revisionNote ?? null,
     version: fields.version || 1,
     liveUrl: fields.liveUrl ?? null,
+    publishedLinks: fields.publishedLinks ?? null,
     liveNote: fields.liveNote ?? null,
     publishedAt: isPublished ? fields.publishedAt || now : null,
+    claimedAt:
+      fields.claimedAt ??
+      (fields.assignedToId && status === "RAW_MATERIAL" ? now : null),
     targetDate: fields.targetDate ?? null,
     createdById: currentUser.id,
     createdBy: {

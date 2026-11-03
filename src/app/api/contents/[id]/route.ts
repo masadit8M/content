@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getContentById, updateContentItem, deleteContentItem } from "@/lib/content-store";
-import { isReviewerRole, REVIEWER_HINT } from "@/lib/content-utils";
+import {
+  getContentById,
+  updateContentItem,
+  deleteContentItem,
+} from "@/lib/content-store";
+import { isReviewerRole, isRawMaterialStage } from "@/lib/content-utils";
 
 export const dynamic = "force-dynamic";
-
-/** Status yang hanya boleh ditetapkan Lead / Admin. */
-const REVIEWER_ONLY_STATUS = ["READY_TO_PUBLISH", "PUBLISHED", "NEED_REVISION"];
-/** Konten yang sudah disetujui / tayang hanya boleh dipindahkan keluar oleh Lead / Admin. */
-const LOCKED_STATUS = ["READY_TO_PUBLISH", "PUBLISHED"];
 
 export async function GET(
   request: Request,
@@ -22,7 +21,10 @@ export async function GET(
 
     const content = await getContentById(params.id);
     if (!content) {
-      return NextResponse.json({ error: "Konten tidak ditemukan" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Konten tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({ content });
@@ -43,22 +45,43 @@ export async function PATCH(
 
     const current = await getContentById(params.id);
     if (!current) {
-      return NextResponse.json({ error: "Konten tidak ditemukan" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Konten tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
     const body = await request.json();
 
-    if (body.status && body.status !== current.status && !isReviewerRole(user.role)) {
-      const targetsGated = REVIEWER_ONLY_STATUS.includes(body.status);
-      const leavesLocked = LOCKED_STATUS.includes(current.status);
-      if (targetsGated || leavesLocked) {
-        return NextResponse.json({ error: REVIEWER_HINT }, { status: 403 });
-      }
+    // Cegah rebutan bahan mentah yang sudah diambil user lain (kecuali dikembalikan ke null atau diselesaikan)
+    const staysRaw =
+      !body.status || String(body.status).toUpperCase() === "RAW_MATERIAL";
+    if (
+      isRawMaterialStage(current) &&
+      current.assignedToId &&
+      staysRaw &&
+      "assignedToId" in body &&
+      body.assignedToId !== null &&
+      body.assignedToId !== "" &&
+      body.assignedToId !== current.assignedToId &&
+      !isReviewerRole(user.role)
+    ) {
+      return NextResponse.json(
+        {
+          error: `Bahan mentah ini sudah diambil oleh ${
+            current.assignedTo?.name || "anggota tim lain"
+          } untuk diedit.`,
+        },
+        { status: 409 }
+      );
     }
 
     const updated = await updateContentItem(params.id, body);
     if (!updated) {
-      return NextResponse.json({ error: "Konten tidak ditemukan" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Konten tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({ success: true, content: updated });
@@ -82,13 +105,20 @@ export async function DELETE(
 
     const current = await getContentById(params.id);
     if (!current) {
-      return NextResponse.json({ error: "Konten tidak ditemukan" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Konten tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
-    const isOwner = current.createdById === user.id;
-    if (!isOwner && !isReviewerRole(user.role)) {
+    const isOwnerOrAssignee =
+      current.createdById === user.id || current.assignedToId === user.id;
+    if (!isOwnerOrAssignee && !isReviewerRole(user.role)) {
       return NextResponse.json(
-        { error: "Hanya pembuat konten atau Lead / Admin yang dapat menghapus" },
+        {
+          error:
+            "Hanya pengunggah, pengedit konten, atau Lead / Admin yang dapat menghapus",
+        },
         { status: 403 }
       );
     }

@@ -3,30 +3,31 @@
 import React, { useMemo, useState } from "react";
 import { useAuth, DEMO_PERSONAS } from "@/context/AuthContext";
 import { BRAND } from "@/lib/brand";
+import { isRawMaterialStage } from "@/lib/content-utils";
 import {
-  getStage,
-  needsRevision,
-  isReviewerRole,
-  PLATFORM_OPTIONS,
-} from "@/lib/content-utils";
+  getSchoolPosition,
+  getMonthTheme,
+  formatSlot,
+} from "@/lib/marketing-plan";
+import { downloadMediaFile } from "@/lib/upload-client";
 import {
   Plus,
-  Flame,
   Search,
   LogOut,
   ChevronDown,
   Wand2,
-  ShieldCheck,
+  Calendar,
+  Download,
+  UploadCloud,
+  Rocket,
 } from "lucide-react";
 
-export type ViewType = "raw" | "review" | "ready" | "showcase" | "studio";
+export type ViewType = "raw" | "published" | "schedule" | "studio";
 
 interface NavbarProps {
   contents: any[];
   currentView: ViewType;
   onViewChange: (view: ViewType) => void;
-  selectedPlatform: string;
-  onPlatformChange: (platform: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onOpenCreateModal: () => void;
@@ -36,8 +37,6 @@ export function MarketingNavbar({
   contents,
   currentView,
   onViewChange,
-  selectedPlatform,
-  onPlatformChange,
   searchQuery,
   onSearchChange,
   onOpenCreateModal,
@@ -46,30 +45,34 @@ export function MarketingNavbar({
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
 
   const counts = useMemo(() => {
-    let raw = 0;
-    let review = 0;
-    let revAlert = 0;
-    let ready = 0;
-    let live = 0;
+    let rawAvailable = 0;
+    let rawClaimed = 0;
+    let finished = 0;
 
     for (const c of contents) {
-      const st = getStage(c);
-      if (st === "RAW" || st === "IDEA") raw++;
-      else if (st === "REVIEW") {
-        review++;
-        if (needsRevision(c)) revAlert++;
-      } else if (st === "READY") ready++;
-      else if (st === "LIVE") live++;
+      if (isRawMaterialStage(c)) {
+        if (c.assignedToId) rawClaimed++;
+        else rawAvailable++;
+      } else {
+        finished++;
+      }
     }
-    return { raw, review, revAlert, ready, live };
+    return {
+      rawAvailable,
+      rawClaimed,
+      rawTotal: rawAvailable + rawClaimed,
+      finished,
+    };
   }, [contents]);
 
-  const platforms = [
-    { id: "ALL", label: "Semua Platform" },
-    ...PLATFORM_OPTIONS,
-  ];
-
-  const isReviewer = isReviewerRole(currentUser?.role);
+  const scheduleSummary = useMemo(() => {
+    const pos = getSchoolPosition(new Date());
+    const theme = getMonthTheme(pos.m);
+    return {
+      slotLabel: formatSlot(pos),
+      themeLabel: theme.label,
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-[#1A3460] border-b-2 border-[#F3BC6F]/40 text-white shadow-md">
@@ -107,7 +110,7 @@ export function MarketingNavbar({
                 </span>
               </div>
               <p className="text-[11px] text-[#F9C5CB] font-semibold hidden md:block">
-                Jadwal Marketing, Brainstorm Ide, Bahan Mentah, & Stok Konten Siap Upload
+                Bahan Mentah → Ambil & Edit → Upload Konten & Link Platform Tayang
               </p>
             </div>
           </button>
@@ -118,7 +121,7 @@ export function MarketingNavbar({
               <Search className="w-4 h-4 text-[#F3BC6F] absolute left-3.5 top-2.5" />
               <input
                 type="text"
-                placeholder="Cari judul, tema jadwal, caption, atau link live..."
+                placeholder="Cari judul bahan, tema jadwal, caption, atau link medsos..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-white/10 border border-[#F3BC6F]/30 text-white placeholder-white/50 focus:outline-none focus:border-[#F35E50] focus:ring-1 focus:ring-[#F35E50] transition"
@@ -134,7 +137,11 @@ export function MarketingNavbar({
               className="px-3.5 py-2 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white text-xs sm:text-sm font-black flex items-center gap-1.5 shadow-md shadow-[#F35E50]/30 transition active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Upload Konten</span>
+              <span className="hidden sm:inline">
+                {currentView === "published"
+                  ? "Upload Konten / Link"
+                  : "Upload Baru"}
+              </span>
               <span className="sm:hidden">Upload</span>
             </button>
 
@@ -157,14 +164,8 @@ export function MarketingNavbar({
                   </div>
                 )}
                 <div className="text-left hidden lg:block">
-                  <div className="text-xs font-black text-white leading-tight flex items-center gap-1">
-                    <span>{currentUser?.name}</span>
-                    {isReviewer && (
-                      <ShieldCheck
-                        className="w-3.5 h-3.5 text-[#F3BC6F]"
-                        aria-label="Reviewer"
-                      />
-                    )}
+                  <div className="text-xs font-black text-white leading-tight">
+                    {currentUser?.name}
                   </div>
                   <div className="text-[10px] text-[#F3BC6F] font-bold">
                     {currentUser?.title || currentUser?.role}
@@ -183,7 +184,6 @@ export function MarketingNavbar({
                   <div className="space-y-1 my-1 max-h-80 overflow-y-auto pr-1">
                     {DEMO_PERSONAS.map((p) => {
                       const isActive = currentUser?.email === p.email;
-                      const pReviewer = isReviewerRole(p.role);
                       return (
                         <button
                           key={p.email}
@@ -206,11 +206,6 @@ export function MarketingNavbar({
                           <div className="flex-1 min-w-0">
                             <div className="font-black flex items-center gap-1.5 text-[#1A3460]">
                               <span>{p.name}</span>
-                              {pReviewer && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-black">
-                                  Reviewer
-                                </span>
-                              )}
                               {isActive && (
                                 <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#F35E50] text-white">
                                   Aktif
@@ -242,122 +237,122 @@ export function MarketingNavbar({
         </div>
       </div>
 
-      {/* Sub Bar: 4 Tahap Bank Konten + Studio Lengkap + Platform Filter */}
+      {/* Sub Bar: 4 Tab Utama (Langsung Berganti di Atas Layar) + Pengingat Tema Minggu Ini */}
       <div className="bg-[#122544] border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center justify-between py-2 gap-3">
-            <div className="flex items-center gap-1 bg-white/10 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-full">
+          <div className="flex flex-wrap items-center justify-between py-2 gap-2.5">
+            <div className="flex items-center gap-1.5 bg-white/10 p-1 rounded-2xl border border-white/10 overflow-x-auto max-w-full">
               {/* TAB 1: BAHAN MENTAH */}
               <button
                 type="button"
                 onClick={() => onViewChange("raw")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
                   currentView === "raw"
                     ? "bg-[#F35E50] text-white shadow-md"
                     : "text-white/80 hover:text-white hover:bg-white/10"
                 }`}
               >
-                <span>📁 1. Bahan Mentah</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-black/25 text-[10px]">
-                  {counts.raw}
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>1. Bahan Mentah</span>
+                <span
+                  title={`${counts.rawAvailable} bahan bebas diambil`}
+                  className="px-1.5 py-0.2 rounded-full bg-black/25 text-[10px]"
+                >
+                  {counts.rawAvailable}
                 </span>
-              </button>
-
-              {/* TAB 2: HASIL EDIT & USULAN */}
-              <button
-                type="button"
-                onClick={() => onViewChange("review")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                  currentView === "review"
-                    ? "bg-amber-500 text-white shadow-md"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span>🎬 2. Hasil Edit & Usulan</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-black/25 text-[10px]">
-                  {counts.review}
-                </span>
-                {counts.revAlert > 0 && (
+                {counts.rawClaimed > 0 && (
                   <span
-                    title={`${counts.revAlert} konten perlu perbaikan`}
-                    className="w-2 h-2 rounded-full bg-rose-400"
-                  />
+                    title={`${counts.rawClaimed} bahan sedang diambil (blur)`}
+                    className="px-1.5 py-0.2 rounded-full bg-amber-400 text-[#1A3460] text-[10px] font-black"
+                  >
+                    🔒 {counts.rawClaimed}
+                  </span>
                 )}
               </button>
 
-              {/* TAB 3: BANK SIAP UPLOAD */}
+              {/* TAB 2: UPLOAD KONTEN & LINK TAYANG */}
               <button
                 type="button"
-                onClick={() => onViewChange("ready")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                  currentView === "ready"
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span>🚀 3. Bank Siap Upload</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-black/25 text-[10px]">
-                  {counts.ready}
-                </span>
-              </button>
-
-              {/* TAB 4: ARSIP TAYANG */}
-              <button
-                type="button"
-                onClick={() => onViewChange("showcase")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                  currentView === "showcase"
+                onClick={() => onViewChange("published")}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                  currentView === "published"
                     ? "bg-emerald-600 text-white shadow-md"
                     : "text-white/80 hover:text-white hover:bg-white/10"
                 }`}
               >
-                <Flame className="w-3.5 h-3.5 text-[#F3BC6F]" />
-                <span>4. Arsip Tayang</span>
+                <Rocket className="w-3.5 h-3.5" />
+                <span>2. Upload Konten & Link Tayang</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-black/25 text-[10px]">
-                  {counts.live}
+                  {counts.finished}
                 </span>
+                {counts.rawClaimed > 0 && (
+                  <span
+                    title={`${counts.rawClaimed} bahan mentah sedang diedit di sini`}
+                    className="px-1.5 py-0.2 rounded-full bg-amber-300 text-[#1A3460] text-[10px] font-black"
+                  >
+                    🛠️ {counts.rawClaimed} diedit
+                  </span>
+                )}
               </button>
 
-              {/* STUDIO LENGKAP */}
+              {/* TAB 3: JADWAL MARKETING & BRAND KIT */}
+              <button
+                type="button"
+                onClick={() => onViewChange("schedule")}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                  currentView === "schedule"
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Jadwal & Brand</span>
+              </button>
+
+              {/* TAB 4: STUDIO IDE (MURNI BRAINSTORMING) */}
               <button
                 type="button"
                 onClick={() => onViewChange("studio")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
                   currentView === "studio"
                     ? "bg-[#F3BC6F] text-[#1A3460] shadow-md"
                     : "text-[#F3BC6F] hover:text-white hover:bg-white/10"
                 }`}
               >
                 <Wand2 className="w-3.5 h-3.5" />
-                <span>Studio Lengkap</span>
+                <span>Studio Ide</span>
               </button>
             </div>
 
-            {/* Platform Filter */}
-            {currentView !== "studio" && (
-              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                <span className="text-[11px] font-bold text-white/60 mr-1 hidden sm:inline">
-                  Platform:
+            {/* Pengingat Singkat Tema Minggu Ini & Unduh Logo Cepat (Tanpa Memakan Tinggi Layar) */}
+            <div className="hidden xl:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onViewChange("schedule")}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-[#F3BC6F]/30 text-[11px] font-bold text-white inline-flex items-center gap-1.5 transition cursor-pointer"
+                title="Klik untuk membuka matriks lengkap Jadwal Marketing & Brand Kit"
+              >
+                <span className="text-[#F3BC6F] font-black">
+                  📅 {scheduleSummary.slotLabel}:
                 </span>
-                {platforms.map((p) => {
-                  const isSelected = selectedPlatform === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => onPlatformChange(p.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                        isSelected
-                          ? "bg-white text-[#1A3460] shadow-sm font-black"
-                          : "text-white/70 hover:text-white hover:bg-white/10"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                <span>Tema {scheduleSummary.themeLabel}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  downloadMediaFile({
+                    url: BRAND.logoUrl,
+                    name: BRAND.logoFileName,
+                  })
+                }
+                className="px-2.5 py-1.5 rounded-xl bg-[#FFF8F3] hover:bg-[#F3BC6F] text-[#1A3460] text-[11px] font-black inline-flex items-center gap-1 transition cursor-pointer"
+                title="Unduh Logo PNG Transparan PAUD Arjuna untuk dipasang di pojok kiri atas konten"
+              >
+                <Download className="w-3 h-3 text-[#F35E50]" />
+                <span>Logo PNG</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

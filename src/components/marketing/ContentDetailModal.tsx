@@ -11,19 +11,20 @@ import {
 } from "@/components/common/TeamMentionInput";
 import { useToast } from "@/components/common/Toast";
 import {
-  getStage,
-  needsRevision,
+  isRawMaterialStage,
   getRawFiles,
   getEditedFiles,
+  getPublishedLinks,
+  linksToFields,
+  detectPlatformFromUrl,
   filesToFields,
   PLATFORM_OPTIONS,
   FORMAT_OPTIONS,
   getRequiredHashtags,
   buildPostText,
-  toDateInputValue,
   isReviewerRole,
-  REVIEWER_HINT,
   MediaFile,
+  PublishedLink,
   timeAgo,
 } from "@/lib/content-utils";
 import {
@@ -35,27 +36,24 @@ import {
   patchContent,
   deleteContent,
   postComment,
-  approveContent,
-  requestRevision,
-  markLive,
-  revertLive,
+  returnToRawMaterial,
 } from "@/lib/content-actions";
 import { copyText } from "@/lib/clipboard";
 import {
   X,
   Trash2,
-  FileText,
   Sparkles,
   CheckCircle2,
   UploadCloud,
   Film,
   Hash,
   Copy,
-  Flame,
   History,
   MessageSquare,
   Undo2,
-  ArrowUpRight,
+  Link2,
+  Plus,
+  ExternalLink,
 } from "lucide-react";
 
 interface DetailModalProps {
@@ -74,9 +72,11 @@ export function ContentDetailModal({
   const { currentUser } = useAuth();
   const toast = useToast();
 
-  const canReview = isReviewerRole(currentUser?.role);
   const canDelete =
-    canReview || (currentUser?.id && content.createdById === currentUser.id);
+    isReviewerRole(currentUser?.role) ||
+    (currentUser?.id &&
+      (content.createdById === currentUser.id ||
+        content.assignedToId === currentUser.id));
 
   const themeGroups = useMemo(() => getThemeGroups(new Date()), []);
 
@@ -85,21 +85,10 @@ export function ContentDetailModal({
     content.description || ""
   );
   const [themeId, setThemeId] = useState<string>(content.themeId || "");
-  const [platform, setPlatform] = useState<string>(
-    content.platform || "INSTAGRAM"
-  );
   const [contentType, setContentType] = useState<string>(
     content.contentType || "REELS"
   );
-  const [targetDate, setTargetDate] = useState<string>(
-    toDateInputValue(content.targetDate)
-  );
-  const [assignedToId, setAssignedToId] = useState<string>(
-    content.assignedToId || ""
-  );
-  const [prepNotes, setPrepNotes] = useState<string>(content.prepNotes || "");
   const [caption, setCaption] = useState<string>(content.caption || "");
-  const [liveUrl, setLiveUrl] = useState<string>(content.liveUrl || "");
 
   const [rawFiles, setRawFiles] = useState<MediaFile[]>(() =>
     getRawFiles(content)
@@ -107,6 +96,11 @@ export function ContentDetailModal({
   const [editedFiles, setEditedFiles] = useState<MediaFile[]>(() =>
     getEditedFiles(content)
   );
+  const [links, setLinks] = useState<PublishedLink[]>(() =>
+    getPublishedLinks(content)
+  );
+  const [newPlatform, setNewPlatform] = useState("INSTAGRAM");
+  const [newUrl, setNewUrl] = useState("");
 
   const [editFilesOpen, setEditFilesOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -115,12 +109,30 @@ export function ContentDetailModal({
   const [feedFilter, setFeedFilter] = useState<"ALL" | "COMMENT" | "LOG">(
     "ALL"
   );
-  const [revInput, setRevInput] = useState("");
-  const [showRevBox, setShowRevBox] = useState(false);
 
-  const stage = getStage(content);
-  const platformInfo = getPlatformBadge(platform);
+  const isStillRaw = isRawMaterialStage(content);
   const statusInfo = getStatusBadge(content);
+
+  const handleAddLocalLink = () => {
+    const clean = newUrl.trim();
+    if (!clean || !/^https?:\/\//i.test(clean)) {
+      toast("Masukkan tautan lengkap diawali https://...", { tone: "error" });
+      return;
+    }
+    const auto = detectPlatformFromUrl(clean);
+    const plat = newPlatform || (auto !== "WEBSITE" ? auto : "INSTAGRAM");
+    setLinks((prev) => [
+      ...prev,
+      {
+        id: `lnk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        platform: plat,
+        url: clean,
+        addedBy: currentUser?.name || "Tim",
+        addedAt: new Date().toISOString(),
+      },
+    ]);
+    setNewUrl("");
+  };
 
   const handleSaveChanges = async () => {
     if (!title.trim()) {
@@ -131,39 +143,29 @@ export function ContentDetailModal({
     setSaving(true);
     try {
       const plan = getPlanItem(themeId);
-      const hadEditedBefore = getEditedFiles(content).length > 0;
-      const hasEditedNow = editedFiles.length > 0;
-
-      // Jika tadinya Bahan Mentah dan sekarang baru dilampiri Hasil Edit, otomatis naik ke Review
-      let nextStatus = content.status;
-      let nextVersion = content.version || 1;
-      if ((stage === "RAW" || stage === "IDEA") && hasEditedNow) {
-        nextStatus = "IN_REVIEW";
-      } else if (!hadEditedBefore && hasEditedNow) {
-        nextVersion += 1;
-      }
+      const hasFinishedAssets = editedFiles.length > 0 || links.length > 0;
 
       const payload: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || null,
         themeId: themeId || null,
         themeLabel: plan ? getPlanLabel(plan) : content.themeLabel || null,
-        platform,
         contentType,
-        targetDate: targetDate || null,
-        assignedToId: assignedToId || null,
-        prepNotes: prepNotes.trim() || null,
         caption: caption.trim() || null,
-        liveUrl: liveUrl.trim() || null,
-        status: nextStatus,
-        version: nextVersion,
         ...filesToFields("raw", rawFiles),
         ...filesToFields("edited", editedFiles),
       };
 
+      if (!isStillRaw || hasFinishedAssets) {
+        Object.assign(payload, linksToFields(links));
+        if (links.length > 0 && !content.publishedAt) {
+          payload.publishedAt = new Date().toISOString();
+        }
+      }
+
       const res = await patchContent(content.id, payload);
       if (res.ok) {
-        toast("Perubahan konten berhasil disimpan!");
+        toast("Perubahan berhasil disimpan!");
         setEditFilesOpen(false);
         onRefresh();
       } else {
@@ -174,58 +176,15 @@ export function ContentDetailModal({
     }
   };
 
-  const handleApproveNow = async () => {
+  const handleReturnRawNow = async () => {
     if (!currentUser) return;
-    const res = await approveContent(content, currentUser);
+    const res = await returnToRawMaterial(content, currentUser);
     if (res.ok) {
-      toast("Konten disetujui & masuk ke Bank Siap Upload!");
+      toast("Bahan dikembalikan ke Tab 1 (Bahan Mentah) & tidak blur lagi.");
       onRefresh();
+      onClose();
     } else {
-      toast(res.error || "Gagal menyetujui.", { tone: "error" });
-    }
-  };
-
-  const handleSendRevision = async () => {
-    if (!currentUser || !revInput.trim()) return;
-    const res = await requestRevision(content, currentUser, revInput);
-    if (res.ok) {
-      setRevInput("");
-      setShowRevBox(false);
-      toast("Catatan perbaikan dikirim!");
-      onRefresh();
-    } else {
-      toast(res.error || "Gagal mengirim catatan perbaikan.", {
-        tone: "error",
-      });
-    }
-  };
-
-  const handleMarkLiveNow = async () => {
-    if (!currentUser) return;
-    if (!liveUrl.trim() || !/^https?:\/\//i.test(liveUrl.trim())) {
-      toast("Isi tautan postingan medsos (https://...) terlebih dahulu.", {
-        tone: "error",
-      });
-      return;
-    }
-    const res = await markLive(content, currentUser, liveUrl.trim());
-    if (res.ok) {
-      toast("Konten berhasil ditandai Sudah Tayang!");
-      onRefresh();
-    } else {
-      toast(res.error || "Gagal menandai tayang.", { tone: "error" });
-    }
-  };
-
-  const handleRevertLiveNow = async () => {
-    if (!currentUser) return;
-    const res = await revertLive(content, currentUser);
-    if (res.ok) {
-      setLiveUrl("");
-      toast("Status tayang dibatalkan — kembali ke Bank Siap Upload.");
-      onRefresh();
-    } else {
-      toast(res.error || "Gagal membatalkan status tayang.", { tone: "error" });
+      toast(res.error || "Gagal mengembalikan bahan.", { tone: "error" });
     }
   };
 
@@ -234,11 +193,11 @@ export function ContentDetailModal({
     try {
       const res = await deleteContent(content.id);
       if (res.ok) {
-        toast("Konten dihapus dari Bank Konten.");
+        toast("Item dihapus dari Bank Konten.");
         onRefresh();
         onClose();
       } else {
-        toast(res.error || "Gagal menghapus konten.", { tone: "error" });
+        toast(res.error || "Gagal menghapus item.", { tone: "error" });
       }
     } finally {
       setDeleting(false);
@@ -265,24 +224,13 @@ export function ContentDetailModal({
           <div className="space-y-2 flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black border ${platformInfo.className}`}
-              >
-                {platformInfo.icon}
-                {platformInfo.label}
-              </span>
-              <span
                 className={`text-xs px-2.5 py-0.5 rounded-full border ${statusInfo.className}`}
               >
                 {statusInfo.label}
               </span>
-              {content.origin === "PROPOSAL" && (
-                <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-300 text-[#1A3460]">
-                  🌟 Usulan Mandiri
-                </span>
-              )}
-              {content.origin === "STUDIO" && (
-                <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-violet-200 text-violet-900">
-                  💡 Dari Studio Ide
+              {content.assignedTo && (
+                <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-300 text-[#1A3460]">
+                  PIC: {content.assignedTo.name}
                 </span>
               )}
             </div>
@@ -306,13 +254,13 @@ export function ContentDetailModal({
 
         {/* Body 2 Kolom */}
         <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-h-[76vh] overflow-y-auto">
-          {/* Kolom Kiri (7): Media, Metadata Jadwal, Brief, Caption, & Aksi Tahap */}
+          {/* Kolom Kiri (7): Media, Tema, Caption, & Daftar Link Platform */}
           <div className="lg:col-span-7 space-y-5">
-            {/* Pratinjau Bahan Mentah vs Hasil Produksi */}
+            {/* Pratinjau Bahan Mentah & Hasil Edit */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black uppercase tracking-wider text-[#1A3460]">
-                  Berkas Aset di Bank Konten
+                  Berkas Media
                 </span>
                 <button
                   type="button"
@@ -334,7 +282,7 @@ export function ContentDetailModal({
                   <MediaPreview
                     files={rawFiles}
                     emptyLabel="Tanpa bahan mentah"
-                    emptySubLabel="Usulan mandiri / brief ide"
+                    emptySubLabel="Konten mandiri"
                     heightClass="h-40"
                     downloadBaseName={`mentah-${content.id.slice(-5)}`}
                   />
@@ -343,12 +291,12 @@ export function ContentDetailModal({
                 <div className="bg-[#FFF8F3] border-2 border-[#F3BC6F] rounded-2xl p-3 space-y-1.5">
                   <div className="text-xs font-black text-[#F35E50] flex items-center gap-1">
                     <Film className="w-3.5 h-3.5" />
-                    Hasil Edit / Final ({editedFiles.length})
+                    Konten Jadi / Hasil Edit ({editedFiles.length})
                   </div>
                   <MediaPreview
                     files={editedFiles}
-                    emptyLabel="Belum ada hasil edit"
-                    emptySubLabel="Unggah setelah diedit di CapCut/Canva"
+                    emptyLabel="Belum ada berkas jadi"
+                    emptySubLabel="Unggah hasil edit atau isi link tayang di bawah"
                     heightClass="h-40"
                     downloadBaseName={`final-${content.id.slice(-5)}`}
                   />
@@ -364,7 +312,7 @@ export function ContentDetailModal({
                   />
                   <div className="border-t border-[#1A3460]/10 pt-3">
                     <MultiFileUpload
-                      label="🎬 Kelola Berkas Hasil Edit / Final"
+                      label="🎬 Kelola Berkas Konten Jadi / Hasil Edit"
                       files={editedFiles}
                       onChange={setEditedFiles}
                     />
@@ -373,16 +321,16 @@ export function ContentDetailModal({
               )}
             </div>
 
-            {/* Metadata Tema Jadwal, Platform, Format, PIC, Tanggal */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#FFF8F3] p-4 rounded-2xl border border-[#1A3460]/15">
+            {/* Tema, Format, & Catatan */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#FFF8F3] p-4 rounded-2xl border border-[#1A3460]/15">
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-black text-[#1A3460] mb-1">
-                  Tema Jadwal Marketing (JADWAL MARKET KONTEN.xlsx)
+                  Tema Jadwal Marketing
                 </label>
                 <select
                   value={themeId}
                   onChange={(e) => setThemeId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-[#1A3460]/20 text-[#1A3460] font-black focus:outline-none focus:border-[#F35E50]"
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-[#1A3460]/20 text-[#1A3460] font-black"
                 >
                   <option value="">-- Umum / Lintas Tema --</option>
                   {themeGroups.map((g) => (
@@ -393,23 +341,6 @@ export function ContentDetailModal({
                         </option>
                       ))}
                     </optgroup>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black text-[#1A3460] mb-1">
-                  Platform
-                </label>
-                <select
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-[#1A3460]/20 text-[#1A3460] font-bold"
-                >
-                  {PLATFORM_OPTIONS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
                   ))}
                 </select>
               </div>
@@ -432,63 +363,18 @@ export function ContentDetailModal({
                 </select>
               </div>
 
-              <div>
+              <div className="sm:col-span-3">
                 <label className="block text-[11px] font-black text-[#1A3460] mb-1">
-                  PIC / Pengolah Konten
+                  Catatan / Arahan
                 </label>
-                <select
-                  value={assignedToId}
-                  onChange={(e) => setAssignedToId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-[#1A3460]/20 text-[#1A3460] font-bold"
-                >
-                  <option value="">-- Belum Ditentukan --</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black text-[#1A3460] mb-1">
-                  Target Tanggal Upload
-                </label>
-                <input
-                  type="date"
-                  value={targetDate}
-                  onChange={(e) => setTargetDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-[#1A3460]/20 text-[#1A3460] font-bold"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-black text-[#1A3460] mb-1">
-                  Ringkasan / Catatan Singkat
-                </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Catatan singkat konteks konten..."
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-[#1A3460]/20 text-[#1A3460] font-medium"
+                  placeholder="Catatan tambahan atau konteks konten..."
+                  className="w-full p-2.5 text-xs rounded-xl bg-white border border-[#1A3460]/20 text-[#1A3460] font-medium"
                 />
               </div>
-            </div>
-
-            {/* Brief / Naskah Rekaman (prepNotes) */}
-            <div className="bg-[#FFF8F3] border border-[#1A3460]/15 rounded-2xl p-4 space-y-1.5">
-              <label className="text-xs font-black text-[#1A3460] flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-[#F35E50]" />
-                Brief Rekaman / Naskah Slide / Arahan Visual
-              </label>
-              <textarea
-                rows={4}
-                value={prepNotes}
-                onChange={(e) => setPrepNotes(e.target.value)}
-                placeholder="Panduan scene, teks di dalam video/slide, atau catatan dari guru..."
-                className="w-full p-3 text-xs rounded-xl bg-white border border-[#1A3460]/15 text-[#1A3460] font-medium leading-relaxed focus:outline-none focus:border-[#F35E50]"
-              />
             </div>
 
             {/* Caption Postingan Medsos */}
@@ -528,7 +414,7 @@ export function ContentDetailModal({
                 </div>
               </div>
               <textarea
-                rows={4}
+                rows={3}
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 placeholder="Tulis caption final untuk Instagram / TikTok / Facebook..."
@@ -536,106 +422,112 @@ export function ContentDetailModal({
               />
             </div>
 
-            {/* Tautan Postingan Live & Aksi Perpindahan Tahap */}
+            {/* Daftar Link Platform Tayang (Multi-Link) */}
             <div className="bg-emerald-50/70 border-2 border-emerald-300 rounded-2xl p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-emerald-600" />
-                  Status Alur & Tautan Tayang
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4 text-emerald-700" />
+                  Daftar Link Platform Tempat Konten Diupload ({links.length})
                 </span>
-                {content.liveUrl && (
-                  <a
-                    href={content.liveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-black text-emerald-700 hover:underline inline-flex items-center gap-1"
-                  >
-                    Buka Postingan <ArrowUpRight className="w-3.5 h-3.5" />
-                  </a>
-                )}
               </div>
+
+              {links.length > 0 && (
+                <div className="space-y-1.5">
+                  {links.map((lnk) => {
+                    const pBadge = getPlatformBadge(lnk.platform);
+                    return (
+                      <div
+                        key={lnk.id}
+                        className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white border border-emerald-200 text-xs"
+                      >
+                        <a
+                          href={lnk.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 min-w-0 flex-1 hover:underline text-[#1A3460] font-semibold"
+                        >
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] border shrink-0 ${pBadge.className}`}
+                          >
+                            {pBadge.icon}
+                            {pBadge.label}
+                          </span>
+                          <span className="truncate">{lnk.url}</span>
+                          <ExternalLink className="w-3 h-3 text-emerald-700 shrink-0" />
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLinks((prev) =>
+                              prev.filter((x) => x.id !== lnk.id)
+                            )
+                          }
+                          className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 cursor-pointer"
+                          title="Hapus baris link ini (jangan lupa klik Simpan Perubahan)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  value={newPlatform}
+                  onChange={(e) => setNewPlatform(e.target.value)}
+                  className="px-2.5 py-2 rounded-xl bg-white border border-emerald-300 text-xs font-black text-[#1A3460] shrink-0"
+                >
+                  {PLATFORM_OPTIONS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
                 <input
                   type="url"
-                  value={liveUrl}
-                  onChange={(e) => setLiveUrl(e.target.value)}
-                  placeholder="https://www.instagram.com/reel/... (diisi setelah tayang)"
+                  value={newUrl}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewUrl(val);
+                    const auto = detectPlatformFromUrl(val);
+                    if (val.trim() && auto !== "WEBSITE") {
+                      setNewPlatform(auto);
+                    }
+                  }}
+                  placeholder="https://www.instagram.com/reel/... atau link TikTok/FB/YT"
                   className="flex-1 px-3 py-2 text-xs rounded-xl bg-white border border-emerald-300 text-[#1A3460] font-medium focus:outline-none focus:border-emerald-600"
                 />
-                {stage !== "LIVE" && (
-                  <button
-                    type="button"
-                    disabled={!canReview}
-                    title={!canReview ? REVIEWER_HINT : undefined}
-                    onClick={handleMarkLiveNow}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black cursor-pointer disabled:opacity-45"
-                  >
-                    🎉 Tandai Tayang
-                  </button>
-                )}
-                {stage === "LIVE" && canReview && (
-                  <button
-                    type="button"
-                    onClick={handleRevertLiveNow}
-                    className="px-3 py-2 rounded-xl bg-white border border-emerald-400 text-emerald-900 text-xs font-black inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    <Undo2 className="w-3.5 h-3.5" />
-                    Batalkan Tayang
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleAddLocalLink}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black inline-flex items-center justify-center gap-1 cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Link
+                </button>
               </div>
-
-              {/* Quick Reviewer Actions when in REVIEW */}
-              {stage === "REVIEW" && (
-                <div className="pt-2 border-t border-emerald-200 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={!canReview}
-                    title={!canReview ? REVIEWER_HINT : undefined}
-                    onClick={handleApproveNow}
-                    className="px-3.5 py-2 rounded-xl bg-[#1A3460] hover:bg-[#122544] text-[#F3BC6F] text-xs font-black cursor-pointer disabled:opacity-45"
-                  >
-                    ✅ Setujui ke Bank Siap Upload
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canReview}
-                    title={!canReview ? REVIEWER_HINT : undefined}
-                    onClick={() => setShowRevBox((v) => !v)}
-                    className="px-3.5 py-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-black cursor-pointer disabled:opacity-45"
-                  >
-                    🔁 Minta Perbaikan
-                  </button>
-                </div>
-              )}
-
-              {showRevBox && (
-                <div className="flex gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={revInput}
-                    onChange={(e) => setRevInput(e.target.value)}
-                    placeholder="Tulis catatan perbaikan singkat..."
-                    className="flex-1 px-3 py-2 text-xs rounded-xl bg-white border border-rose-300 text-[#1A3460]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSendRevision}
-                    className="px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-black cursor-pointer"
-                  >
-                    Kirim
-                  </button>
-                </div>
-              )}
-
-              {needsRevision(content) && content.revisionNote && (
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-300 text-xs text-rose-900 font-semibold">
-                  <strong>Catatan Perbaikan Aktif:</strong>{" "}
-                  {renderMentionedText(content.revisionNote)}
-                </div>
-              )}
             </div>
+
+            {/* Tombol Kembalikan ke Bahan Mentah jika masih di antrean edit */}
+            {isStillRaw && content.assignedToId && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-amber-950">
+                  Bahan mentah ini sedang diambil oleh{" "}
+                  <strong>{content.assignedTo?.name || "Tim"}</strong>. Batal mengedit?
+                </span>
+                <button
+                  type="button"
+                  onClick={handleReturnRawNow}
+                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                  Kembalikan ke Bahan Mentah
+                </button>
+              </div>
+            )}
 
             {/* Save & Delete Footer */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#1A3460]/10">
@@ -646,7 +538,9 @@ export function ContentDetailModal({
                 className="px-5 py-2.5 rounded-xl bg-[#F35E50] hover:bg-[#e04b3d] text-white text-xs font-black inline-flex items-center gap-2 shadow-md transition disabled:opacity-50 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4 text-[#F3BC6F]" />
-                <span>{saving ? "Menyimpan..." : "Simpan Semua Perubahan"}</span>
+                <span>
+                  {saving ? "Menyimpan..." : "Simpan Semua Perubahan"}
+                </span>
               </button>
 
               {canDelete && (
@@ -679,7 +573,7 @@ export function ContentDetailModal({
                       className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      Hapus Konten
+                      Hapus Item
                     </button>
                   )}
                 </div>
@@ -687,13 +581,13 @@ export function ContentDetailModal({
             </div>
           </div>
 
-          {/* Kolom Kanan (5): Diskusi Tim (@Mention) & Riwayat Alur */}
+          {/* Kolom Kanan (5): Diskusi Tim & Riwayat Otomatis */}
           <div className="lg:col-span-5 flex flex-col justify-between bg-[#FFF8F3] border-2 border-[#1A3460]/15 rounded-2xl p-4 sm:p-5 space-y-4">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-xs font-black text-[#1A3460] uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-[#F35E50]" />
-                  Diskusi & Riwayat ({allComments.length})
+                  Catatan & Riwayat ({allComments.length})
                 </h3>
 
                 <div className="inline-flex rounded-xl bg-white border border-[#1A3460]/15 p-0.5 text-[10px] font-black">
@@ -738,7 +632,7 @@ export function ContentDetailModal({
               <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
                 {filteredComments.length === 0 ? (
                   <p className="text-xs text-slate-400 italic text-center py-8">
-                    Belum ada komentar atau catatan pada tab ini.
+                    Belum ada catatan atau riwayat pada item ini.
                   </p>
                 ) : (
                   filteredComments.map((cm: any) => {
@@ -775,9 +669,6 @@ export function ContentDetailModal({
                               className="w-5 h-5 rounded-full object-cover border border-[#F3BC6F]"
                             />
                             <span>{cm.user?.name || "Tim"}</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#1A3460]/10 text-[#1A3460]">
-                              {cm.user?.role || "TIM"}
-                            </span>
                           </div>
                           <span className="text-[10px] text-slate-400 font-bold">
                             {timeAgo(cm.createdAt)}

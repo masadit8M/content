@@ -61,10 +61,12 @@ model MarketingContent {
   assetUrl     String?   // Link asset/preview umum
   assetName    String?   // Nama file atau label asset
   
-  // Hasil Live (Publish)
-  liveUrl      String?   // Link postingan live (Instagram, TikTok, YouTube, dll)
-  liveNote     String?   // Catatan saat live
-  publishedAt  DateTime? // Waktu dipublikasikan
+  // Hasil Live (Publish) & Daftar Link Multi-Platform
+  liveUrl        String?   // Link postingan utama (kompatibilitas)
+  publishedLinks String?   // JSON array [{id,platform,url,label,addedBy,addedAt}] seluruh link tempat konten diupload
+  liveNote       String?   // Catatan saat live
+  publishedAt    DateTime? // Waktu dipublikasikan
+  claimedAt      DateTime? // Waktu bahan mentah diambil untuk diedit
   
   targetDate   DateTime? // Target tanggal tayang
   
