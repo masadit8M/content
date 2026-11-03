@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { updateContentTask, deleteContentTask } from "@/lib/content-store";
+
+export const dynamic = "force-dynamic";
 
 export async function PATCH(
   request: Request,
@@ -13,20 +15,11 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const updateData: any = {};
+    const task = await updateContentTask(params.id, params.taskId, body);
 
-    if (body.isCompleted !== undefined) updateData.isCompleted = body.isCompleted;
-    if (body.title !== undefined) updateData.title = body.title;
-    if (body.assignedToId !== undefined) updateData.assignedToId = body.assignedToId;
-
-    const task = await prisma.contentTask.update({
-      where: { id: params.taskId },
-      data: updateData,
-      include: {
-        createdBy: { select: { id: true, name: true, avatar: true } },
-        assignedTo: { select: { id: true, name: true, avatar: true } },
-      },
-    });
+    if (!task) {
+      return NextResponse.json({ error: "Task tidak ditemukan" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true, task });
   } catch (error: any) {
@@ -44,11 +37,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.contentTask.delete({
-      where: { id: params.taskId },
-    });
-
-    return NextResponse.json({ success: true });
+    const deleted = await deleteContentTask(params.id, params.taskId);
+    return NextResponse.json({ success: deleted });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -22,7 +22,7 @@ export default function MarketingDashboardPage() {
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [contents, setContents] = useState<any[]>(FALLBACK_CONTENTS);
+  const [contents, setContents] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>(TEAM_MEMBERS);
   const [dataLoading, setDataLoading] = useState(false);
 

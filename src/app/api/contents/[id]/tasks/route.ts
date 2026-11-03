@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { addContentTask } from "@/lib/content-store";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(
   request: Request,
@@ -18,29 +20,20 @@ export async function POST(
       return NextResponse.json({ error: "Judul task tambahan wajib diisi" }, { status: 400 });
     }
 
-    const task = await prisma.contentTask.create({
-      data: {
-        contentId: params.id,
-        title: title.trim(),
-        isCompleted: false,
-        createdById: user.id,
-        assignedToId: assignedToId || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-      },
-      include: {
-        createdBy: { select: { id: true, name: true, avatar: true } },
-        assignedTo: { select: { id: true, name: true, avatar: true } },
-      },
-    });
+    const task = await addContentTask(
+      params.id,
+      title,
+      assignedToId || null,
+      dueDate || null,
+      user
+    );
 
-    // Touch the content updatedAt
-    await prisma.marketingContent.update({
-      where: { id: params.id },
-      data: { updatedAt: new Date() },
-    });
+    if (!task) {
+      return NextResponse.json({ error: "Konten tidak ditemukan" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true, task }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Gagal menambah task" }, { status: 500 });
   }
 }
