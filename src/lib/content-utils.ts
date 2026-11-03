@@ -1,0 +1,333 @@
+/**
+ * Helper murni (tanpa JSX) untuk Bank Konten: tahap, file media, opsi platform/format, peran,
+ * dan teks siap-salin. Dipakai bersama oleh komponen klien maupun route API.
+ */
+import { BRAND } from "./brand";
+import { getPlanItem } from "./marketing-plan";
+
+// ---------------------------------------------------------------------------------------
+// TAHAP BANK KONTEN
+// ---------------------------------------------------------------------------------------
+
+export type Stage = "IDEA" | "RAW" | "REVIEW" | "READY" | "LIVE";
+
+export interface MediaFile {
+  url: string;
+  name?: string;
+  type?: string;
+  size?: number;
+}
+
+export const STAGE_META: Record<
+  Stage,
+  { label: string; short: string; emoji: string; chip: string }
+> = {
+  IDEA: {
+    label: "Brief dari Studio",
+    short: "Brief",
+    emoji: "💡",
+    chip: "bg-violet-50 text-violet-800 border-violet-300",
+  },
+  RAW: {
+    label: "Bahan Mentah",
+    short: "Bahan Mentah",
+    emoji: "📁",
+    chip: "bg-indigo-50 text-indigo-800 border-indigo-300",
+  },
+  REVIEW: {
+    label: "Hasil & Usulan",
+    short: "Review",
+    emoji: "🎬",
+    chip: "bg-amber-50 text-amber-800 border-amber-300",
+  },
+  READY: {
+    label: "Siap Upload",
+    short: "Siap Upload",
+    emoji: "🚀",
+    chip: "bg-blue-50 text-blue-800 border-blue-300",
+  },
+  LIVE: {
+    label: "Sudah Tayang",
+    short: "Tayang",
+    emoji: "🎉",
+    chip: "bg-emerald-50 text-emerald-800 border-emerald-300",
+  },
+};
+
+/** Status yang tersimpan di data → tahap tampilan. Status lama (IN_EDITING dst.) tetap terbaca. */
+export function getStage(c: any): Stage {
+  const s = String(c?.status || "").toUpperCase();
+  if (s === "PUBLISHED") return "LIVE";
+  if (s === "READY_TO_PUBLISH") return "READY";
+  if (s === "IN_REVIEW" || s === "NEED_REVISION") return "REVIEW";
+  if (s === "IN_EDITING" || s === "IN_PREPARATION") {
+    return getEditedFiles(c).length > 0 ? "REVIEW" : "RAW";
+  }
+  if (s === "IDEA") return "IDEA";
+  return "RAW";
+}
+
+export function needsRevision(c: any): boolean {
+  return String(c?.status || "").toUpperCase() === "NEED_REVISION";
+}
+
+// ---------------------------------------------------------------------------------------
+// PERAN
+// ---------------------------------------------------------------------------------------
+
+/** Lead & Admin boleh menyetujui, meminta revisi, menjadwalkan, dan menandai tayang. */
+export function isReviewerRole(role?: string | null): boolean {
+  const r = String(role || "").toUpperCase();
+  return r === "LEAD" || r === "ADMIN";
+}
+
+export const REVIEWER_HINT = "Hanya Lead / Admin yang dapat menyetujui & menandai tayang";
+
+// ---------------------------------------------------------------------------------------
+// FILE MEDIA
+// ---------------------------------------------------------------------------------------
+
+function parseFiles(v: any): MediaFile[] {
+  if (!v) return [];
+  let arr: any = v;
+  if (typeof v === "string") {
+    try {
+      arr = JSON.parse(v);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((f) => f && typeof f.url === "string" && f.url);
+}
+
+export function getRawFiles(c: any): MediaFile[] {
+  const files = parseFiles(c?.rawFiles);
+  if (files.length) return files;
+  const url = c?.rawAssetUrl || c?.assetUrl;
+  return url ? [{ url, name: c?.rawAssetName || c?.assetName, type: c?.rawAssetType }] : [];
+}
+
+export function getEditedFiles(c: any): MediaFile[] {
+  const files = parseFiles(c?.editedFiles);
+  if (files.length) return files;
+  const url = c?.editedAssetUrl;
+  return url ? [{ url, name: c?.editedAssetName, type: c?.editedAssetType }] : [];
+}
+
+/** Hasil jadi jika ada, jika tidak bahan mentah — untuk thumbnail & unduhan. */
+export function getPrimaryFiles(c: any): MediaFile[] {
+  const edited = getEditedFiles(c);
+  return edited.length ? edited : getRawFiles(c);
+}
+
+export type MediaKind = "video" | "image" | "link" | "other";
+
+export function detectMediaKind(file?: MediaFile | null): MediaKind {
+  if (!file?.url) return "other";
+  const url = file.url;
+  const type = String(file.type || "").toLowerCase();
+
+  if (type.startsWith("video") || type === "video") return "video";
+  if (type.startsWith("image") || type === "image") return "image";
+  if (url.startsWith("data:video/")) return "video";
+  if (url.startsWith("data:image/")) return "image";
+
+  if (/drive\.google\.com|docs\.google\.com|canva\.com|dropbox\.com|youtu\.?be|icloud\.com|onedrive|1drv\.ms/i.test(url)) {
+    return "link";
+  }
+  const path = url.split("?")[0];
+  if (/\.(mp4|webm|mov|m4v|ogg)$/i.test(path)) return "video";
+  if (/\.(jpe?g|png|webp|gif|avif|svg)$/i.test(path)) return "image";
+  if (/images\.unsplash\.com/i.test(url)) return "image";
+  if (type === "link") return "link";
+  return "other";
+}
+
+export function fileLabel(file: MediaFile, index = 0): string {
+  if (file.name) return file.name;
+  const kind = detectMediaKind(file);
+  if (kind === "link") return "Tautan cloud";
+  const tail = file.url.split("?")[0].split("/").pop();
+  return tail && !file.url.startsWith("data:") ? decodeURIComponent(tail) : `Berkas ${index + 1}`;
+}
+
+export function formatBytes(bytes?: number): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Ubah daftar file menjadi kolom-kolom yang disimpan di konten (JSON + kolom tunggal untuk kompatibilitas). */
+export function filesToFields(kind: "raw" | "edited", files: MediaFile[]) {
+  const first = files[0];
+  const mediaType = first ? detectMediaKind(first).toUpperCase() : null;
+  if (kind === "raw") {
+    return {
+      rawFiles: files.length ? JSON.stringify(files) : null,
+      rawAssetUrl: first?.url ?? null,
+      rawAssetName: first ? fileLabel(first) : null,
+      rawAssetType: mediaType,
+      assetUrl: first?.url ?? null,
+      assetName: first ? fileLabel(first) : null,
+    };
+  }
+  return {
+    editedFiles: files.length ? JSON.stringify(files) : null,
+    editedAssetUrl: first?.url ?? null,
+    editedAssetName: first ? fileLabel(first) : null,
+    editedAssetType: mediaType,
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// PLATFORM & FORMAT (kode format mengikuti tabel IX di Excel)
+// ---------------------------------------------------------------------------------------
+
+export const PLATFORM_OPTIONS = [
+  { id: "INSTAGRAM", label: "Instagram" },
+  { id: "TIKTOK", label: "TikTok" },
+  { id: "FACEBOOK", label: "Facebook" },
+  { id: "YOUTUBE", label: "YouTube" },
+];
+
+export const FORMAT_OPTIONS = [
+  { id: "REELS", code: "R", label: "Reel 15–30 detik", hint: "Lagu + gerakan + teks manfaat" },
+  { id: "FEED_CAROUSEL", code: "C", label: "Carousel", hint: "Beberapa slide gambar" },
+  { id: "VIDEO_TUTORIAL", code: "V", label: "Video Tutorial", hint: "Cara/langkah kegiatan" },
+  { id: "STORY", code: "S", label: "Story Instagram", hint: "Tayang 24 jam" },
+  { id: "REEL_TREND", code: "RD", label: "Reel Duet / Trend", hint: "Mengikuti tren" },
+  { id: "BANNER", code: "", label: "Poster / Flyer", hint: "Satu gambar statis" },
+];
+
+const LEGACY_FORMATS: Record<string, { code: string; label: string }> = {
+  TIKTOK_VIDEO: { code: "R", label: "Video TikTok" },
+  YOUTUBE_VIDEO: { code: "V", label: "Video YouTube" },
+  ARTICLE: { code: "", label: "Artikel" },
+};
+
+export function getFormatMeta(id?: string | null): { code: string; label: string } {
+  const found = FORMAT_OPTIONS.find((f) => f.id === id);
+  if (found) return { code: found.code, label: found.label };
+  if (id && LEGACY_FORMATS[id]) return LEGACY_FORMATS[id];
+  return { code: "", label: (id || "").replace(/_/g, " ") };
+}
+
+/** Terjemahan nilai platform/format dari Studio Ide (teks bebas) ke nilai di Bank Konten. */
+export function mapStudioPlatform(label?: string): { platform: string; contentType: string } | null {
+  const l = String(label || "").toLowerCase();
+  if (!l) return null;
+  if (l.includes("tiktok")) return { platform: "TIKTOK", contentType: "REELS" };
+  if (l.includes("youtube")) return { platform: "YOUTUBE", contentType: "REELS" };
+  if (l.includes("facebook")) return { platform: "FACEBOOK", contentType: "REELS" };
+  if (l.includes("carousel")) return { platform: "INSTAGRAM", contentType: "FEED_CAROUSEL" };
+  if (l.includes("reels")) return { platform: "INSTAGRAM", contentType: "REELS" };
+  if (l.includes("whatsapp")) return { platform: "INSTAGRAM", contentType: "STORY" };
+  return null;
+}
+
+// ---------------------------------------------------------------------------------------
+// CAPTION & HASHTAG
+// ---------------------------------------------------------------------------------------
+
+/** Hashtag khusus tema (mis. #spmb) + hashtag wajib brand. */
+export function getRequiredHashtags(c: any): string {
+  const extra = getPlanItem(c?.themeId)?.hashtags || [];
+  return [...extra, BRAND.defaultHashtags].join(" ");
+}
+
+/** Teks final siap tempel ke medsos: caption + hashtag (ditambahkan otomatis jika belum ada). */
+export function buildPostText(c: any): string {
+  const caption = String(c?.caption || "").trim();
+  if (!caption) return "";
+  const hasTags = /#paudArjunaMalang/i.test(caption);
+  return hasTags ? caption : `${caption}\n\n${getRequiredHashtags(c)}`;
+}
+
+/**
+ * Studio menempelkan caption di akhir naskah ("[CAPTION & HASHTAG]:" atau "CAPTION:").
+ * Pisahkan agar caption masuk kolom sendiri dan naskah tetap bersih.
+ */
+export function splitScriptAndCaption(text?: string | null): { script: string; caption: string } {
+  const raw = String(text || "");
+  const match = raw.match(/\n*\[?CAPTION(?:\s*&\s*HASHTAG)?\]?\s*:\s*\n?/i);
+  if (!match || match.index === undefined) return { script: raw.trim(), caption: "" };
+  return {
+    script: raw.slice(0, match.index).trim(),
+    caption: raw.slice(match.index + match[0].length).trim(),
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// WAKTU
+// ---------------------------------------------------------------------------------------
+
+export function timeAgo(value?: string | Date | null): string {
+  if (!value) return "";
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return "";
+  const diff = Math.max(0, Date.now() - t);
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "baru saja";
+  if (min < 60) return `${min} menit lalu`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} jam lalu`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} hari lalu`;
+  return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+}
+
+export function formatDateID(value?: string | Date | null, withWeekday = false): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("id-ID", {
+    weekday: withWeekday ? "short" : undefined,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * Tanggal tayang disimpan sebagai tanggal kalender (tanpa jam). Bagian "YYYY-MM-DD" dibaca apa adanya
+ * agar tidak bergeser hari karena zona waktu.
+ */
+function parseDateOnly(value?: string | Date | null): Date | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Nilai untuk <input type="date"> (YYYY-MM-DD) dari tanggal tersimpan. */
+export function toDateInputValue(value?: string | Date | null): string {
+  const d = parseDateOnly(value);
+  if (!d) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function formatDateOnly(value?: string | Date | null, withWeekday = false): string {
+  const d = parseDateOnly(value);
+  if (!d) return "";
+  return d.toLocaleDateString("id-ID", {
+    weekday: withWeekday ? "short" : undefined,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Selisih hari kalender dari hari ini (negatif = sudah lewat). */
+export function dayDiffFromToday(value?: string | Date | null): number | null {
+  const d = parseDateOnly(value);
+  if (!d) return null;
+  const today = new Date();
+  const a = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return Math.round((d.getTime() - a) / 86400000);
+}

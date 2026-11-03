@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { ToastProvider } from "@/components/common/Toast";
 
 export const metadata: Metadata = {
-  title: "ContentOps — Marketing Team Workspace & Live Showcase",
-  description: "Platform pemantauan konten marketing, pelaporan persiapan admin, manajemen task tim ClickUp-style, dan showcase hasil live.",
+  title: "Bank Konten & Jadwal Marketing — PAUD Arjuna Malang",
+  description:
+    "Pusat Bank Konten Terpadu, Jadwal Marketing Tahun Ajaran, Panduan Brand Identity, dan Studio Ide PAUD Arjuna Malang.",
+  icons: {
+    icon: "/brand/logo-arjuna.png",
+  },
 };
 
 export default function RootLayout({
@@ -13,9 +18,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className="dark">
-      <body className="bg-slate-950 min-h-screen text-slate-100 antialiased selection:bg-indigo-600 selection:text-white">
-        <AuthProvider>{children}</AuthProvider>
+    <html lang="id">
+      <body className="bg-[#FFF8F3] min-h-screen text-[#1A3460] antialiased selection:bg-[#F35E50]/20 selection:text-[#1A3460]">
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

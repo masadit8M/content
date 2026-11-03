@@ -1,84 +1,117 @@
 "use client";
 
 import React from "react";
-import { Sparkles, Clock, CheckCircle2, Flame, Layers, ListChecks } from "lucide-react";
+import { UploadCloud, Film, Rocket, Flame } from "lucide-react";
+import { getStage, needsRevision } from "@/lib/content-utils";
+import { ViewType } from "@/components/layout/MarketingNavbar";
 
 interface StatsProps {
   contents: any[];
+  currentView: ViewType;
+  onSelectView: (view: ViewType) => void;
 }
 
-export function StatsBanner({ contents }: StatsProps) {
-  const total = contents.length;
-  const inPrep = contents.filter((c) => c.status === "IN_PREPARATION" || c.status === "IDEA").length;
-  const inReview = contents.filter((c) => c.status === "IN_REVIEW").length;
-  const ready = contents.filter((c) => c.status === "READY_TO_PUBLISH").length;
-  const published = contents.filter((c) => c.status === "PUBLISHED" || c.liveUrl).length;
+export function StatsBanner({
+  contents,
+  currentView,
+  onSelectView,
+}: StatsProps) {
+  const rawCount = contents.filter((c) => {
+    const st = getStage(c);
+    return st === "RAW" || st === "IDEA";
+  }).length;
 
-  const allTasks = contents.flatMap((c) => c.tasks || []);
-  const completedTasks = allTasks.filter((t) => t.isCompleted).length;
-  const taskPercent = allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0;
+  const reviewItems = contents.filter((c) => getStage(c) === "REVIEW");
+  const revisionCount = reviewItems.filter((c) => needsRevision(c)).length;
+
+  const readyCount = contents.filter((c) => getStage(c) === "READY").length;
+  const liveCount = contents.filter((c) => getStage(c) === "LIVE").length;
+
+  const cards: {
+    id: ViewType;
+    step: string;
+    title: string;
+    count: number;
+    sub: string;
+    icon: React.ReactNode;
+    activeClass: string;
+  }[] = [
+    {
+      id: "raw",
+      step: "Tahap 1",
+      title: "Bahan Mentah & Brief",
+      count: rawCount,
+      sub: "Footage kelas & ide siap diolah",
+      icon: <UploadCloud className="w-4 h-4 text-[#F35E50]" />,
+      activeClass: "border-[#F35E50] ring-2 ring-[#F35E50]/20",
+    },
+    {
+      id: "review",
+      step: "Tahap 2",
+      title: "Hasil Edit & Usulan",
+      count: reviewItems.length,
+      sub:
+        revisionCount > 0
+          ? `${revisionCount} perlu perbaikan • sisanya siap cek`
+          : "Hasil CapCut/Canva & usulan mandiri",
+      icon: <Film className="w-4 h-4 text-amber-600" />,
+      activeClass: "border-amber-500 ring-2 ring-amber-500/20",
+    },
+    {
+      id: "ready",
+      step: "Tahap 3",
+      title: "Bank Siap Upload",
+      count: readyCount,
+      sub: "Aset & caption final siap tayang",
+      icon: <Rocket className="w-4 h-4 text-blue-600" />,
+      activeClass: "border-blue-600 ring-2 ring-blue-600/20",
+    },
+    {
+      id: "showcase",
+      step: "Tahap 4",
+      title: "Arsip Sudah Tayang",
+      count: liveCount,
+      sub: "Tautan postingan medsos resmi",
+      icon: <Flame className="w-4 h-4 text-emerald-600" />,
+      activeClass: "border-emerald-600 ring-2 ring-emerald-600/20",
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 mb-6">
-      {/* Total Konten */}
-      <div className="bg-white border-2 border-[#1A3460]/15 rounded-2xl p-4 shadow-sm hover:border-[#1A3460]/40 transition">
-        <div className="flex items-center justify-between text-[#1A3460]/70 text-xs font-bold mb-1">
-          <span>Total Konten</span>
-          <Layers className="w-4 h-4 text-[#1A3460]" />
-        </div>
-        <div className="text-2xl font-black text-[#1A3460]">{total}</div>
-        <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Semua kampanye tim</div>
-      </div>
-
-      {/* Persiapan Admin */}
-      <div className="bg-white border-2 border-[#F3BC6F] rounded-2xl p-4 shadow-sm hover:border-[#F35E50] transition">
-        <div className="flex items-center justify-between text-[#F35E50] text-xs font-bold mb-1">
-          <span>Persiapan Admin</span>
-          <Clock className="w-4 h-4 text-[#F35E50]" />
-        </div>
-        <div className="text-2xl font-black text-[#F35E50]">{inPrep}</div>
-        <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Riset naskah & visual</div>
-      </div>
-
-      {/* Review & Revisi */}
-      <div className="bg-white border-2 border-[#F9C5CB] rounded-2xl p-4 shadow-sm hover:border-[#F35E50] transition">
-        <div className="flex items-center justify-between text-[#1A3460] text-xs font-bold mb-1">
-          <span>Review & Revisi</span>
-          <Sparkles className="w-4 h-4 text-[#F35E50]" />
-        </div>
-        <div className="text-2xl font-black text-[#1A3460]">{inReview}</div>
-        <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Umpan balik tim</div>
-      </div>
-
-      {/* Sudah Live! (Showcase) */}
-      <div className="bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-400 rounded-2xl p-4 shadow-sm hover:border-emerald-600 transition">
-        <div className="flex items-center justify-between text-emerald-700 text-xs font-bold mb-1">
-          <span>Hasil Live!</span>
-          <Flame className="w-4 h-4 text-emerald-600" />
-        </div>
-        <div className="text-2xl font-black text-emerald-700">{published}</div>
-        <div className="text-[11px] text-emerald-600/80 font-bold mt-0.5">Tautan publik aktif</div>
-      </div>
-
-      {/* Subtask Selesai */}
-      <div className="col-span-2 md:col-span-1 bg-white border-2 border-[#1A3460]/15 rounded-2xl p-4 shadow-sm hover:border-[#1A3460]/40 transition">
-        <div className="flex items-center justify-between text-[#1A3460]/70 text-xs font-bold mb-1">
-          <span>Task Tambahan Tim</span>
-          <ListChecks className="w-4 h-4 text-[#1A3460]" />
-        </div>
-        <div className="flex items-baseline gap-2">
-          <div className="text-2xl font-black text-[#1A3460]">
-            {completedTasks}/{allTasks.length}
-          </div>
-          <span className="text-xs font-black text-[#F35E50]">({taskPercent}%)</span>
-        </div>
-        <div className="w-full bg-[#FFF8F3] border border-[#1A3460]/10 h-2 rounded-full mt-1.5 overflow-hidden">
-          <div
-            className="bg-[#F35E50] h-full rounded-full transition-all duration-500"
-            style={{ width: `${taskPercent}%` }}
-          />
-        </div>
-      </div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {cards.map((card) => {
+        const isActive = currentView === card.id;
+        return (
+          <button
+            key={card.id}
+            type="button"
+            onClick={() => onSelectView(card.id)}
+            className={`text-left bg-white rounded-2xl p-4 border-2 shadow-sm transition cursor-pointer ${
+              isActive
+                ? card.activeClass
+                : "border-[#1A3460]/15 hover:border-[#1A3460]/40"
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs font-bold mb-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#1A3460]/60">
+                {card.step}
+              </span>
+              {card.icon}
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-2xl font-black text-[#1A3460]">
+                {card.count}
+              </span>
+              <span className="text-xs font-black text-[#1A3460] truncate">
+                {card.title}
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-semibold mt-0.5 truncate">
+              {card.sub}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

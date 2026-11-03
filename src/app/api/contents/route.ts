@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getAllContents, createContentItem } from "@/lib/content-store";
+import { isReviewerRole, REVIEWER_HINT } from "@/lib/content-utils";
 
 export const dynamic = "force-dynamic";
+
+/** Status yang hanya boleh ditetapkan Lead / Admin. */
+const REVIEWER_ONLY_STATUS = ["READY_TO_PUBLISH", "PUBLISHED", "NEED_REVISION"];
 
 export async function GET(request: Request) {
   try {
@@ -30,6 +34,7 @@ export async function GET(request: Request) {
         (c) =>
           c.title?.toLowerCase().includes(s) ||
           c.description?.toLowerCase().includes(s) ||
+          c.caption?.toLowerCase().includes(s) ||
           c.prepNotes?.toLowerCase().includes(s)
       );
     }
@@ -48,8 +53,12 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    if (!body.title || !body.title.trim()) {
+    if (!body.title || !String(body.title).trim()) {
       return NextResponse.json({ error: "Judul konten wajib diisi" }, { status: 400 });
+    }
+
+    if (REVIEWER_ONLY_STATUS.includes(body.status) && !isReviewerRole(user.role)) {
+      return NextResponse.json({ error: REVIEWER_HINT }, { status: 403 });
     }
 
     const newContent = await createContentItem(body, user);

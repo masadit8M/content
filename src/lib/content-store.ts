@@ -18,6 +18,78 @@ let memoryCache: any[] | null = null;
 let lastCacheTime = 0;
 const CACHE_TTL = 3000; // 3 seconds
 
+/**
+ * Kolom konten yang boleh diubah lewat API. Bidang lain (id, createdBy, comments, dst.)
+ * tidak bisa ditimpa dari request.
+ */
+const CONTENT_FIELDS = [
+  "title",
+  "description",
+  "platform",
+  "contentType",
+  "status",
+  "themeId",
+  "themeLabel",
+  "origin",
+  "caption",
+  "prepNotes",
+  "rawFiles",
+  "rawAssetUrl",
+  "rawAssetName",
+  "rawAssetType",
+  "assetUrl",
+  "assetName",
+  "editedFiles",
+  "editedAssetUrl",
+  "editedAssetName",
+  "editedAssetType",
+  "revisionNote",
+  "version",
+  "liveUrl",
+  "liveNote",
+  "publishedAt",
+  "targetDate",
+  "assignedToId",
+] as const;
+
+const DATE_FIELDS = new Set(["publishedAt", "targetDate"]);
+const JSON_FIELDS = new Set(["rawFiles", "editedFiles"]);
+
+/** Ambil hanya bidang yang diizinkan dan rapikan nilainya (array → JSON, "" → null). */
+function pickContentFields(input: any): Record<string, any> {
+  const out: Record<string, any> = {};
+  if (!input || typeof input !== "object") return out;
+
+  for (const key of CONTENT_FIELDS) {
+    if (!(key in input)) continue;
+    let value = input[key];
+
+    if (JSON_FIELDS.has(key) && Array.isArray(value)) {
+      value = value.length ? JSON.stringify(value) : null;
+    }
+    if (key === "version") {
+      value = Number(value) || 1;
+    } else if (typeof value === "string" && value.trim() === "") {
+      value = null;
+    }
+    out[key] = value === undefined ? null : value;
+  }
+  return out;
+}
+
+/** Bentuk data untuk tabel Prisma (tanggal berupa Date). */
+function toPrismaData(fields: Record<string, any>): Record<string, any> {
+  const data: Record<string, any> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (DATE_FIELDS.has(key)) {
+      data[key] = value ? new Date(value) : null;
+    } else {
+      data[key] = value;
+    }
+  }
+  return data;
+}
+
 export async function getAllContents(): Promise<any[]> {
   const now = Date.now();
   if (memoryCache && now - lastCacheTime < CACHE_TTL) {
@@ -62,10 +134,6 @@ export async function getAllContents(): Promise<any[]> {
       include: {
         createdBy: true,
         assignedTo: true,
-        tasks: {
-          include: { createdBy: true, assignedTo: true },
-          orderBy: { createdAt: "asc" },
-        },
         comments: {
           include: { user: true, taggedUser: true },
           orderBy: { createdAt: "asc" },
@@ -127,31 +195,39 @@ export async function getContentById(id: string): Promise<any | null> {
 
 export async function createContentItem(data: any, currentUser: any): Promise<any> {
   const now = new Date().toISOString();
-  const assignedUser = data.assignedToId ? findTeamMember(data.assignedToId) : null;
-  const isPublished = data.status === "PUBLISHED" || Boolean(data.liveUrl);
+  const fields = pickContentFields(data);
+  const assignedUser = fields.assignedToId ? findTeamMember(fields.assignedToId) : null;
+  const status = fields.status || "RAW_MATERIAL";
+  const isPublished = status === "PUBLISHED";
 
   const newContent = {
     id: data.id || `cnt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    title: data.title,
-    description: data.description || null,
-    platform: data.platform || "INSTAGRAM",
-    contentType: data.contentType || "FEED_CAROUSEL",
-    status: isPublished ? "PUBLISHED" : data.status || "RAW_MATERIAL",
-    prepNotes: data.prepNotes || null,
-    assetUrl: data.assetUrl || data.rawAssetUrl || null,
-    assetName: data.assetName || data.rawAssetName || null,
-    rawAssetUrl: data.rawAssetUrl || data.assetUrl || null,
-    rawAssetName: data.rawAssetName || data.assetName || null,
-    rawAssetType: data.rawAssetType || null,
-    editedAssetUrl: data.editedAssetUrl || null,
-    editedAssetName: data.editedAssetName || null,
-    editedAssetType: data.editedAssetType || null,
-    revisionNote: data.revisionNote || null,
-    version: Number(data.version) || 1,
-    liveUrl: data.liveUrl || null,
-    liveNote: data.liveNote || null,
-    publishedAt: isPublished ? now : null,
-    targetDate: data.targetDate || null,
+    title: String(fields.title || "").trim(),
+    description: fields.description ?? null,
+    platform: fields.platform || "INSTAGRAM",
+    contentType: fields.contentType || "FEED_CAROUSEL",
+    status,
+    themeId: fields.themeId ?? null,
+    themeLabel: fields.themeLabel ?? null,
+    origin: fields.origin ?? null,
+    caption: fields.caption ?? null,
+    prepNotes: fields.prepNotes ?? null,
+    rawFiles: fields.rawFiles ?? null,
+    rawAssetUrl: fields.rawAssetUrl ?? null,
+    rawAssetName: fields.rawAssetName ?? null,
+    rawAssetType: fields.rawAssetType ?? null,
+    assetUrl: fields.assetUrl ?? fields.rawAssetUrl ?? null,
+    assetName: fields.assetName ?? fields.rawAssetName ?? null,
+    editedFiles: fields.editedFiles ?? null,
+    editedAssetUrl: fields.editedAssetUrl ?? null,
+    editedAssetName: fields.editedAssetName ?? null,
+    editedAssetType: fields.editedAssetType ?? null,
+    revisionNote: fields.revisionNote ?? null,
+    version: fields.version || 1,
+    liveUrl: fields.liveUrl ?? null,
+    liveNote: fields.liveNote ?? null,
+    publishedAt: isPublished ? fields.publishedAt || now : null,
+    targetDate: fields.targetDate ?? null,
     createdById: currentUser.id,
     createdBy: {
       id: currentUser.id,
@@ -161,9 +237,8 @@ export async function createContentItem(data: any, currentUser: any): Promise<an
       title: currentUser.title,
       role: currentUser.role,
     },
-    assignedToId: data.assignedToId || null,
+    assignedToId: fields.assignedToId ?? null,
     assignedTo: assignedUser || null,
-    tasks: [],
     comments: [],
     createdAt: now,
     updatedAt: now,
@@ -176,32 +251,14 @@ export async function createContentItem(data: any, currentUser: any): Promise<an
   // Sync to Prisma silently if possible
   try {
     const { prisma } = await import("@/lib/prisma");
+    const { title, ...rest } = toPrismaData(pickContentFields(newContent));
     await prisma.marketingContent.create({
       data: {
         id: newContent.id,
         title: newContent.title,
-        description: newContent.description,
-        platform: newContent.platform,
-        contentType: newContent.contentType,
-        status: newContent.status,
-        prepNotes: newContent.prepNotes,
-        assetUrl: newContent.assetUrl,
-        assetName: newContent.assetName,
-        rawAssetUrl: newContent.rawAssetUrl,
-        rawAssetName: newContent.rawAssetName,
-        rawAssetType: newContent.rawAssetType,
-        editedAssetUrl: newContent.editedAssetUrl,
-        editedAssetName: newContent.editedAssetName,
-        editedAssetType: newContent.editedAssetType,
-        revisionNote: newContent.revisionNote,
-        version: newContent.version,
-        liveUrl: newContent.liveUrl,
-        liveNote: newContent.liveNote,
-        publishedAt: isPublished ? new Date() : null,
-        targetDate: data.targetDate ? new Date(data.targetDate) : null,
+        ...rest,
         createdById: currentUser.id,
-        assignedToId: data.assignedToId || null,
-      },
+      } as any,
     });
   } catch {
     // Ignore
@@ -217,22 +274,26 @@ export async function updateContentItem(id: string, updateData: any): Promise<an
 
   const current = all[index];
   const now = new Date().toISOString();
+  const fields = pickContentFields(updateData);
+
+  if ("title" in fields && !fields.title) delete fields.title; // judul tidak boleh kosong
 
   let assignedTo = current.assignedTo;
-  if (updateData.assignedToId !== undefined) {
-    assignedTo = updateData.assignedToId ? findTeamMember(updateData.assignedToId) : null;
+  if ("assignedToId" in fields) {
+    assignedTo = fields.assignedToId ? findTeamMember(fields.assignedToId) || null : null;
   }
 
-  let publishedAt = current.publishedAt;
-  if (updateData.status === "PUBLISHED" && !publishedAt) {
+  let publishedAt = "publishedAt" in fields ? fields.publishedAt : current.publishedAt;
+  if (fields.status === "PUBLISHED" && !publishedAt) {
     publishedAt = now;
+    fields.publishedAt = now;
   }
 
   const updated = {
     ...current,
-    ...updateData,
+    ...fields,
     assignedTo,
-    publishedAt,
+    publishedAt: publishedAt ?? null,
     updatedAt: now,
   };
 
@@ -242,15 +303,9 @@ export async function updateContentItem(id: string, updateData: any): Promise<an
   // Sync to Prisma silently if possible
   try {
     const { prisma } = await import("@/lib/prisma");
-    const pData: any = { ...updateData };
-    delete pData.assignedTo;
-    delete pData.createdBy;
-    delete pData.tasks;
-    delete pData.comments;
-    if (pData.targetDate) pData.targetDate = new Date(pData.targetDate);
     await prisma.marketingContent.update({
       where: { id },
-      data: pData,
+      data: toPrismaData(fields) as any,
     });
   } catch {
     // Ignore
@@ -279,7 +334,8 @@ export async function addContentComment(
   contentId: string,
   message: string,
   taggedUserId: string | null,
-  currentUser: any
+  currentUser: any,
+  kind: "COMMENT" | "LOG" = "COMMENT"
 ): Promise<any | null> {
   const all = await getAllContents();
   const content = all.find((c) => c.id === contentId);
@@ -298,6 +354,7 @@ export async function addContentComment(
       role: currentUser.role,
     },
     message: message.trim(),
+    kind,
     taggedUserId: taggedUserId || null,
     taggedUser: taggedMember || null,
     createdAt: new Date().toISOString(),
@@ -307,7 +364,8 @@ export async function addContentComment(
     content.comments = [];
   }
   content.comments.push(newComment);
-  content.updatedAt = new Date().toISOString();
+  // Riwayat otomatis tidak menggeser urutan "terakhir diperbarui" konten.
+  if (kind === "COMMENT") content.updatedAt = new Date().toISOString();
 
   await saveAllContents(all);
 
@@ -320,6 +378,7 @@ export async function addContentComment(
         contentId,
         userId: currentUser.id,
         message: newComment.message,
+        kind,
         taggedUserId: taggedUserId || null,
       },
     });
@@ -328,123 +387,4 @@ export async function addContentComment(
   }
 
   return newComment;
-}
-
-export async function addContentTask(
-  contentId: string,
-  title: string,
-  assignedToId: string | null,
-  dueDate: string | null,
-  currentUser: any
-): Promise<any | null> {
-  const all = await getAllContents();
-  const content = all.find((c) => c.id === contentId);
-  if (!content) return null;
-
-  const assignedMember = assignedToId ? findTeamMember(assignedToId) : null;
-  const newTask = {
-    id: `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    contentId,
-    title: title.trim(),
-    isCompleted: false,
-    createdById: currentUser.id,
-    createdBy: {
-      id: currentUser.id,
-      name: currentUser.name,
-      avatar: currentUser.avatar,
-    },
-    assignedToId: assignedToId || null,
-    assignedTo: assignedMember || null,
-    dueDate: dueDate || null,
-    createdAt: new Date().toISOString(),
-  };
-
-  if (!Array.isArray(content.tasks)) {
-    content.tasks = [];
-  }
-  content.tasks.push(newTask);
-  content.updatedAt = new Date().toISOString();
-
-  await saveAllContents(all);
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    await prisma.contentTask.create({
-      data: {
-        id: newTask.id,
-        contentId,
-        title: newTask.title,
-        isCompleted: false,
-        createdById: currentUser.id,
-        assignedToId: assignedToId || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-      },
-    });
-  } catch {
-    // Ignore
-  }
-
-  return newTask;
-}
-
-export async function updateContentTask(
-  contentId: string,
-  taskId: string,
-  updateData: any
-): Promise<any | null> {
-  const all = await getAllContents();
-  const content = all.find((c) => c.id === contentId);
-  if (!content || !Array.isArray(content.tasks)) return null;
-
-  const taskIndex = content.tasks.findIndex((t: any) => t.id === taskId);
-  if (taskIndex === -1) return null;
-
-  const currentTask = content.tasks[taskIndex];
-  let assignedTo = currentTask.assignedTo;
-  if (updateData.assignedToId !== undefined) {
-    assignedTo = updateData.assignedToId ? findTeamMember(updateData.assignedToId) : null;
-  }
-
-  const updatedTask = {
-    ...currentTask,
-    ...updateData,
-    assignedTo,
-  };
-
-  content.tasks[taskIndex] = updatedTask;
-  content.updatedAt = new Date().toISOString();
-
-  await saveAllContents(all);
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    await prisma.contentTask.update({
-      where: { id: taskId },
-      data: updateData,
-    });
-  } catch {
-    // Ignore
-  }
-
-  return updatedTask;
-}
-
-export async function deleteContentTask(contentId: string, taskId: string): Promise<boolean> {
-  const all = await getAllContents();
-  const content = all.find((c) => c.id === contentId);
-  if (!content || !Array.isArray(content.tasks)) return false;
-
-  content.tasks = content.tasks.filter((t: any) => t.id !== taskId);
-  content.updatedAt = new Date().toISOString();
-
-  await saveAllContents(all);
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    await prisma.contentTask.delete({ where: { id: taskId } });
-  } catch {
-    // Ignore
-  }
-
-  return true;
 }

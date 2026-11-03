@@ -1690,7 +1690,7 @@ function AppInner({ onSendToTasks, initialTopic }) {
   const handleSendToTaskTim = (item) => {
     if (typeof onSendToTasks === 'function') {
       onSendToTasks(item);
-      setTaskSentToast(`Tugas "${item.title}" berhasil dikirim ke Kolom Persiapan Admin!`);
+      setTaskSentToast(`Brief "${item.title}" berhasil disimpan ke Bank Konten!`);
       setTimeout(() => setTaskSentToast(''), 4500);
     }
   };
@@ -5081,7 +5081,7 @@ Balas HANYA dengan JSON murni dalam format array of objects berikut:
                           className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white text-xs font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-                          <span>🚀 Kirim ke Task Tim</span>
+                          <span>📥 Simpan ke Bank Konten</span>
                         </button>
                       )}
                       <button
@@ -5482,7 +5482,7 @@ Balas HANYA dengan JSON murni dalam format array of objects berikut:
                                 className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-                                <span>🚀 Kirim ke Task Tim</span>
+                                <span>📥 Simpan ke Bank Konten</span>
                               </button>
                             )}
                           </div>
@@ -6395,7 +6395,7 @@ Balas HANYA dengan JSON murni dalam format array of objects berikut:
                                 className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-                                <span>🚀 Kirim ke Task Tim</span>
+                                <span>📥 Simpan ke Bank Konten</span>
                               </button>
                             )}
                           </div>
@@ -6793,7 +6793,7 @@ Balas HANYA dengan JSON murni dalam format array of objects berikut:
                                       className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer"
                                     >
                                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-                                      <span>🚀 Kirim ke Task Tim</span>
+                                      <span>📥 Simpan ke Bank Konten</span>
                                     </button>
                                   )}
                                 </div>
@@ -7245,7 +7245,7 @@ Balas HANYA dengan JSON murni dalam format array of objects berikut:
                             className="flex items-center justify-center space-x-2 py-3.5 px-5 rounded-2xl font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white shadow-md transition-all active:scale-95 cursor-pointer"
                           >
                             <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-                            <span>🚀 Kirim ke Task Tim</span>
+                            <span>📥 Simpan ke Bank Konten</span>
                           </button>
                         )}
                       </div>

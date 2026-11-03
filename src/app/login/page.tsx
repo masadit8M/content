@@ -75,15 +75,20 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-lg my-6">
         {/* Brand header */}
         <div className="text-center mb-5">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1A3460] text-[#F3BC6F] text-xs font-black mb-3 shadow-sm">
+          <img
+            src="/brand/logo-arjuna.png"
+            alt="Logo PAUD Arjuna Malang"
+            className="w-16 h-16 object-contain mx-auto mb-2 drop-shadow-sm"
+          />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1A3460] text-[#F3BC6F] text-xs font-black mb-2 shadow-sm">
             <Sparkles className="w-3.5 h-3.5 text-[#F35E50]" />
-            ContentOps • PAUD Arjuna Malang
+            Bank Konten & Jadwal Marketing • PAUD Arjuna Malang
           </div>
           <h1 className="text-3xl font-black text-[#1A3460] tracking-tight">
-            ContentOps <span className="text-[#F35E50]">Arjuna</span>
+            Bank Konten <span className="text-[#F35E50]">Arjuna</span>
           </h1>
           <p className="text-[#1A3460]/75 text-xs sm:text-sm mt-1 font-semibold">
-            Kolaborasi Konten Tim, Upload Bahan Mentah, Editing, & Siap Publish
+            Jadwal Tema Tahun Ajaran, Studio Brainstorm Ide, Bahan Mentah, & Bank Konten Siap Upload
           </p>
         </div>
 

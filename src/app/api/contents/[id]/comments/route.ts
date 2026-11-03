@@ -14,7 +14,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, taggedUserId } = await request.json();
+    const { message, taggedUserId, kind } = await request.json();
 
     if (!message || !message.trim()) {
       return NextResponse.json({ error: "Komentar tidak boleh kosong" }, { status: 400 });
@@ -24,7 +24,8 @@ export async function POST(
       params.id,
       message,
       taggedUserId || null,
-      user
+      user,
+      kind === "LOG" ? "LOG" : "COMMENT"
     );
 
     if (!comment) {
